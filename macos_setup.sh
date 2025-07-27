@@ -389,8 +389,24 @@ setup_dotfiles_repo() {
 setup_homebrew() {
     log_info "Setting up Homebrew..."
 
-    # Install Homebrew if not present
-    if ! command_exists brew; then
+    # Check if Homebrew is already installed
+    if command_exists brew; then
+        log_info "Homebrew is already installed. Skipping installation."
+        # Add Homebrew to PATH for Apple Silicon Macs if not already present
+        if [[ $(uname -m) == "arm64" ]]; then
+            if ! grep -q '/opt/homebrew/bin' ~/.zprofile 2>/dev/null; then
+                echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
+                eval "$(/opt/homebrew/bin/brew shellenv)"
+            fi
+        else
+            if ! grep -q '/usr/local/bin' ~/.zprofile 2>/dev/null; then
+                echo 'eval "$(/usr/local/bin/brew shellenv)"' >> ~/.zprofile
+                eval "$(/usr/local/bin/brew shellenv)"
+            fi
+        fi
+        brew update
+        log_success "Homebrew updated"
+    else
         log_info "Installing Homebrew..."
         /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
@@ -402,12 +418,7 @@ setup_homebrew() {
             echo 'eval "$(/usr/local/bin/brew shellenv)"' >> ~/.zprofile
             eval "$(/usr/local/bin/brew shellenv)"
         fi
-
         log_success "Homebrew installed successfully"
-    else
-        log_info "Homebrew already installed, updating..."
-        brew update
-        log_success "Homebrew updated"
     fi
 
     # Use brew bundle with Brewfile from dotfiles repo
