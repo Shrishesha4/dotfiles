@@ -1,0 +1,1 @@
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Shrishesha4/dotfiles/main/macos_setup.sh)"
