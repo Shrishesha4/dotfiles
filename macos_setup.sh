@@ -70,6 +70,9 @@ main() {
     # Create backup directory
     mkdir -p "$BACKUP_DIR"
 
+    # 0. Ensure Xcode Command Line Tools are installed
+    install_xcode_cli
+
     # 1. Clone Dotfiles Repository
     setup_dotfiles_repo
 
@@ -105,6 +108,21 @@ main() {
 
     log_success "Setup completed successfully!"
     log_info "Please restart your terminal or run 'source ~/.zshrc' to apply changes."
+}
+
+install_xcode_cli() {
+    log_info "Checking for Xcode Command Line Tools..."
+    if ! xcode-select -p &>/dev/null; then
+        log_info "Xcode Command Line Tools not found. Installing..."
+        xcode-select --install
+        # Wait until the tools are installed
+        until xcode-select -p &>/dev/null; do
+            sleep 5
+        done
+        log_success "Xcode Command Line Tools installed."
+    else
+        log_info "Xcode Command Line Tools already installed."
+    fi
 }
 
 setup_dotfiles_repo() {
