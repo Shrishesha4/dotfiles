@@ -135,15 +135,20 @@ install_cursor_editor() {
         MOUNT_DIR=$(find /Volumes -maxdepth 2 -type d -name "Cursor.app" -print -quit | xargs -I{} dirname {})
         log_info "Fallback mount dir: $MOUNT_DIR"
     fi
-    if [ -z "$MOUNT_DIR" ] || [ ! -d "$MOUNT_DIR/Cursor.app" ]; then
-        log_error "Failed to find Cursor.app in mounted DMG. Contents of /Volumes:"
+    if [ -z "$MOUNT_DIR" ] || { [ ! -d "$MOUNT_DIR/Cursor.app" ] && [ ! -d "$MOUNT_DIR/Cursor" ]; }; then
+        log_error "Failed to find Cursor.app or Cursor in mounted DMG. Contents of /Volumes:"
         ls -l /Volumes
         log_error "Contents of $MOUNT_DIR:"
         ls -l "$MOUNT_DIR"
         return 1
     fi
-    log_info "Copying $MOUNT_DIR/Cursor.app to /Applications/"
-    cp -R "$MOUNT_DIR/Cursor.app" /Applications/
+    if [ -d "$MOUNT_DIR/Cursor.app" ]; then
+        log_info "Copying $MOUNT_DIR/Cursor.app to /Applications/"
+        cp -R "$MOUNT_DIR/Cursor.app" /Applications/
+    elif [ -d "$MOUNT_DIR/Cursor" ]; then
+        log_info "Copying $MOUNT_DIR/Cursor to /Applications/"
+        cp -R "$MOUNT_DIR/Cursor" /Applications/
+    fi
     if [ $? -eq 0 ]; then
         log_success "Cursor editor installed to /Applications."
     else
