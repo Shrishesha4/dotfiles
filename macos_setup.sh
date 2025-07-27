@@ -176,6 +176,10 @@ main() {
     log_step "Starting macOS Developer Environment Setup..."
     log_info "Backup directory: $BACKUP_DIR"
     
+    # Prompt for Python and Ruby versions
+    prompt_python_versions
+    prompt_ruby_version
+
     # Create backup directory
     mkdir -p "$BACKUP_DIR"
     
@@ -821,37 +825,50 @@ setup_homebrew() {
 setup_ssh_keys() {
     log_step "Setting up SSH keys..."
 
-    # Create .ssh directory if it doesn't exist
-    mkdir -p ~/.ssh
-    chmod 700 ~/.ssh
+    echo
+    echo "SSH Setup Options:"
+    echo "1) Skip SSH setup (use HTTPS for GitHub, or manage SSH yourself)"
+    echo "2) Use an existing SSH key (must already be added to GitHub if you want SSH access)"
+    echo "3) Generate a new SSH key (optionally add to GitHub)"
+    echo
+    read -p "Choose an option (1-3): " -n 1 -r
+    echo
+    case $REPLY in
+        1)
+            log_info "Skipping SSH key setup. You can use HTTPS for GitHub operations."
+            SSH_SETUP=false
+            return 0
+            ;;
+        2)
+            # Use existing key
+            if [ -f ~/.ssh/id_ed25519 ] && [ -f ~/.ssh/id_ed25519.pub ]; then
+                log_info "Using existing SSH key at ~/.ssh/id_ed25519."
+            else
+                log_warning "No existing SSH key found at ~/.ssh/id_ed25519. Please ensure your key exists or choose another option."
+                return 1
+            fi
+            ;;
+        3)
+            # Generate new key
+            read -p "Enter email for new SSH key: " ssh_email
+            ssh-keygen -t ed25519 -C "$ssh_email" -f ~/.ssh/id_ed25519 -N ""
+            log_done "New SSH key generated at ~/.ssh/id_ed25519."
+            ;;
+        *)
+            log_warning "Invalid choice. Skipping SSH key setup."
+            SSH_SETUP=false
+            return 0
+            ;;
+    esac
 
-    # Copy SSH keys from dotfiles repo
-    if [ -f "$DOTFILES_DIR/id_ed25519" ] && [ -f "$DOTFILES_DIR/id_ed25519.pub" ]; then
-        log_info "Copying SSH keys from dotfiles..."
+    # Set permissions
+    chmod 600 ~/.ssh/id_ed25519
+    chmod 644 ~/.ssh/id_ed25519.pub
 
-        # Backup existing keys if they exist
-        if [ -f ~/.ssh/id_ed25519 ]; then
-            log_warning "Backing up existing SSH private key..."
-            cp ~/.ssh/id_ed25519 "$BACKUP_DIR/id_ed25519.backup"
-        fi
-
-        if [ -f ~/.ssh/id_ed25519.pub ]; then
-            log_warning "Backing up existing SSH public key..."
-            cp ~/.ssh/id_ed25519.pub "$BACKUP_DIR/id_ed25519.pub.backup"
-        fi
-
-        # Copy new keys
-        cp "$DOTFILES_DIR/id_ed25519" ~/.ssh/id_ed25519
-        cp "$DOTFILES_DIR/id_ed25519.pub" ~/.ssh/id_ed25519.pub
-
-        # Set correct permissions
-        chmod 600 ~/.ssh/id_ed25519
-        chmod 644 ~/.ssh/id_ed25519.pub
-
-        # Create SSH config if it doesn't exist
-        if [ ! -f ~/.ssh/config ]; then
-            log_info "Creating SSH config..."
-            cat > ~/.ssh/config << EOF
+    # Create SSH config if it doesn't exist
+    if [ ! -f ~/.ssh/config ]; then
+        log_info "Creating SSH config..."
+        cat > ~/.ssh/config << EOF
 Host github.com
     AddKeysToAgent yes
     UseKeychain yes
@@ -861,25 +878,29 @@ Host *
     AddKeysToAgent yes
     UseKeychain yes
 EOF
-            chmod 600 ~/.ssh/config
-        fi
-
-        # Add key to SSH agent
-        log_info "Adding SSH key to agent..."
-        eval "$(ssh-agent -s)"
-        ssh-add --apple-use-keychain ~/.ssh/id_ed25519 2>/dev/null || ssh-add ~/.ssh/id_ed25519
-
-        log_done "SSH keys configured successfully"
-    else
-        log_warning "SSH keys not found in dotfiles repo"
-        log_info "You can generate new SSH keys with: ssh-keygen -t ed25519 -C \"your_email@example.com\""
+        chmod 600 ~/.ssh/config
     fi
 
-    if [ -d "$DOTFILES_DIR/.git" ]; then
-        log_info "Switching dotfiles repo remote to SSH..."
-        cd "$DOTFILES_DIR"
-        git remote set-url origin git@github.com:Shrishesha4/dotfiles.git
-        log_done "Dotfiles repo remote set to SSH"
+    # Add key to SSH agent
+    log_info "Adding SSH key to agent..."
+    eval "$(ssh-agent -s)"
+    ssh-add --apple-use-keychain ~/.ssh/id_ed25519 2>/dev/null || ssh-add ~/.ssh/id_ed25519
+
+    log_done "SSH keys configured successfully."
+
+    # Only offer to add to GitHub if a new key was generated
+    if [[ $REPLY == "3" ]]; then
+        read -p "Do you want to add this SSH key to your GitHub account now? (y/N) " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            pbcopy < ~/.ssh/id_ed25519.pub
+            log_info "Your public key has been copied to the clipboard."
+            log_info "Visit https://github.com/settings/keys and add a new SSH key."
+            log_info "Test with: ssh -T git@github.com"
+        fi
+    else
+        log_info "If you want to use SSH with GitHub, make sure your public key is added to https://github.com/settings/keys."
+        log_info "If not, you can use HTTPS for GitHub operations."
     fi
 }
 
@@ -917,10 +938,12 @@ setup_python() {
     eval "$(pyenv init --path)"
     eval "$(pyenv init -)"
 
-    # Install Python versions
-    local python_versions=("3.13.5" "3.9.23")
+    # Prompt for Python versions if not already set
+    if [ -z "${PYTHON_VERSIONS+x}" ]; then
+        prompt_python_versions
+    fi
 
-    for version in "${python_versions[@]}"; do
+    for version in "${PYTHON_VERSIONS[@]}"; do
         if ! pyenv versions | grep -q "$version"; then
             log_info "Installing Python $version..."
             pyenv install "$version" || log_warning "Failed to install Python $version"
@@ -929,9 +952,11 @@ setup_python() {
         fi
     done
 
-    # Set global Python version
-    log_info "Setting Python 3.13.5 as global default..."
-    pyenv global 3.13.5 || log_warning "Failed to set global Python version"
+    # Set global Python version (first in list)
+    if [ "${#PYTHON_VERSIONS[@]}" -gt 0 ]; then
+        log_info "Setting Python ${PYTHON_VERSIONS[0]} as global default..."
+        pyenv global "${PYTHON_VERSIONS[0]}" || log_warning "Failed to set global Python version"
+    fi
 
     log_done "Python setup completed"
 }
@@ -966,19 +991,21 @@ setup_ruby() {
     export PATH="$HOME/.rbenv/bin:$PATH"
     eval "$(rbenv init -)"
 
-    # Install Ruby version
-    local ruby_version="3.2.7"
+    # Prompt for Ruby version if not already set
+    if [ -z "${RUBY_VERSION+x}" ]; then
+        prompt_ruby_version
+    fi
 
-    if ! rbenv versions | grep -q "$ruby_version"; then
-        log_info "Installing Ruby $ruby_version..."
-        rbenv install "$ruby_version" || log_warning "Failed to install Ruby $ruby_version"
+    if ! rbenv versions | grep -q "$RUBY_VERSION"; then
+        log_info "Installing Ruby $RUBY_VERSION..."
+        rbenv install "$RUBY_VERSION" || log_warning "Failed to install Ruby $RUBY_VERSION"
     else
-        log_done "Ruby $ruby_version already installed"
+        log_done "Ruby $RUBY_VERSION already installed"
     fi
 
     # Set global Ruby version
-    log_info "Setting Ruby $ruby_version as global default..."
-    rbenv global "$ruby_version" || log_warning "Failed to set global Ruby version"
+    log_info "Setting Ruby $RUBY_VERSION as global default..."
+    rbenv global "$RUBY_VERSION" || log_warning "Failed to set global Ruby version"
 
     log_done "Ruby setup completed"
 }
@@ -1178,6 +1205,21 @@ final_steps() {
     log_info "================================"
 
     log_done "Final setup steps completed"
+}
+
+# Prompt for Python and Ruby versions
+prompt_python_versions() {
+    local default_versions="3.13.5,3.9.23"
+    local input
+    input=$(prompt_user "Enter Python versions to install (comma-separated)" "$default_versions")
+    # Remove spaces and split into array
+    PYTHON_VERSIONS=()
+    IFS=',' read -ra PYTHON_VERSIONS <<< "${input// /}"
+}
+
+prompt_ruby_version() {
+    local default_version="3.2.7"
+    RUBY_VERSION=$(prompt_user "Enter Ruby version to install" "$default_version")
 }
 
 # Run main function
