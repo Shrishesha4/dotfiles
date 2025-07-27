@@ -105,70 +105,81 @@ install_xcode_cli() {
 
 install_cursor_editor() {
     log_info "Installing Cursor editor..."
+    
     # Fetch latest Cursor download URL from API
     CURSOR_API_URL="https://cursor.com/api/download?platform=darwin-universal&releaseTrack=stable"
     log_info "Fetching latest Cursor download URL from $CURSOR_API_URL ..."
+    
     CURSOR_JSON=$(curl -fsSL "$CURSOR_API_URL")
     if [ $? -ne 0 ] || [ -z "$CURSOR_JSON" ]; then
         log_error "Failed to fetch Cursor download info."
         return 1
     fi
+    
     CURSOR_DMG_URL=$(echo "$CURSOR_JSON" | grep -o '"downloadUrl":"[^"]*' | head -1 | cut -d'"' -f4)
     if [ -z "$CURSOR_DMG_URL" ]; then
         log_error "Could not parse download URL from Cursor API response."
         return 1
     fi
+    
     log_info "Downloading Cursor from $CURSOR_DMG_URL ..."
     CURSOR_DMG="/tmp/Cursor.dmg"
     curl -L -o "$CURSOR_DMG" "$CURSOR_DMG_URL"
+    
     if [ $? -ne 0 ]; then
         log_error "Failed to download Cursor editor."
         return 1
     fi
+    
     # Mount the DMG and get the mount point
     MOUNT_OUTPUT=$(hdiutil attach "$CURSOR_DMG")
     log_info "hdiutil attach output: $MOUNT_OUTPUT"
-    MOUNT_DIR=$(echo "$MOUNT_OUTPUT" | grep '/Volumes/' | awk '{print $NF}')
+    
+    # Extract the actual mount directory from hdiutil output
+    MOUNT_DIR=$(echo "$MOUNT_OUTPUT" | grep '/Volumes/' | tail -1 | awk '{for(i=3;i<=NF;i++) printf "%s ", $i; print ""}' | sed 's/[[:space:]]*$//')
+    
     if [ -z "$MOUNT_DIR" ]; then
-        # Fallback: find Cursor.app or Cursor in any /Volumes/* directory
-        log_info "Falling back to searching for Cursor.app or Cursor in /Volumes/*"
-        APP_PATH=$(find /Volumes -maxdepth 2 -type d \( -name "Cursor.app" -o -name "Cursor" \) -print -quit)
-        if [ -n "$APP_PATH" ]; then
-            MOUNT_DIR=$(dirname "$APP_PATH")
-            log_info "Found app at $APP_PATH, using mount dir: $MOUNT_DIR"
-        else
-            log_error "Failed to find any Cursor.app or Cursor directory in /Volumes."
-            ls -l /Volumes
-            return 1
-        fi
-    fi
-    if [ ! -d "$MOUNT_DIR/Cursor.app" ] && [ ! -d "$MOUNT_DIR/Cursor" ]; then
-        log_error "Failed to find Cursor.app or Cursor in $MOUNT_DIR. Listing contents:"
-        ls -l "$MOUNT_DIR"
+        log_error "Failed to determine mount directory."
         return 1
     fi
-    if [ -d "$MOUNT_DIR/Cursor.app" ]; then
-        log_info "Copying $MOUNT_DIR/Cursor.app to /Applications/"
-        cp -R "$MOUNT_DIR/Cursor.app" /Applications/
-    elif [ -d "$MOUNT_DIR/Cursor" ]; then
-        log_info "Copying $MOUNT_DIR/Cursor to /Applications/"
-        cp -R "$MOUNT_DIR/Cursor" /Applications/
+    
+    log_info "Mount directory: $MOUNT_DIR"
+    
+    # Look for Cursor.app recursively in the mount directory
+    APP_PATH=$(find "$MOUNT_DIR" -name "Cursor.app" -type d -print -quit)
+    
+    if [ -z "$APP_PATH" ]; then
+        log_error "Failed to find Cursor.app in mounted DMG. Contents:"
+        ls -la "$MOUNT_DIR"
+        hdiutil detach "$MOUNT_DIR"
+        return 1
     fi
+    
+    log_info "Found Cursor.app at: $APP_PATH"
+    log_info "Copying to /Applications/"
+    
+    # Copy the application
+    cp -R "$APP_PATH" /Applications/
+    
     if [ $? -eq 0 ]; then
         log_success "Cursor editor installed to /Applications."
     else
         log_error "Failed to copy Cursor.app to /Applications."
     fi
+    
     # Unmount the DMG
     hdiutil detach "$MOUNT_DIR"
+    
     # Optionally add CLI to /usr/local/bin if available
     if [ -e "/Applications/Cursor.app/Contents/Resources/bin/cursor" ]; then
         sudo ln -sf "/Applications/Cursor.app/Contents/Resources/bin/cursor" /usr/local/bin/cursor
         log_success "'cursor' CLI linked to /usr/local/bin/cursor."
     fi
+    
     # Clean up
     rm -f "$CURSOR_DMG"
 }
+
 
 setup_dotfiles_repo() {
     log_info "Setting up dotfiles repository..."
