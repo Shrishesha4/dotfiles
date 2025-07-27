@@ -71,6 +71,7 @@ main() {
     mkdir -p "$BACKUP_DIR"
 
     install_xcode_cli
+    setup_dotfiles_repo
     install_cursor_editor
     install_fonts
     setup_homebrew
@@ -78,10 +79,9 @@ main() {
     setup_ssh_keys
     setup_python
     setup_ruby
-    setup_dotfiles_repo
     symlink_dotfiles
-    setup_macos_customizations
     setup_terminal_profile
+    setup_macos_customizations
     final_steps
 
     log_success "Setup completed successfully!"
