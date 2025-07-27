@@ -10,7 +10,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Global variables
-DOTFILES_REPO="git@github.com:Shrishesha4/dotfiles.git"
+DOTFILES_REPO="https://github.com/Shrishesha4/dotfiles.git"
 DOTFILES_DIR="$HOME/dotfiles"
 BACKUP_DIR="$HOME/dotfiles_backup_$(date +%Y%m%d_%H%M%S)"
 
@@ -258,6 +258,13 @@ EOF
     else
         log_warning "SSH keys not found in dotfiles repo"
         log_info "You can generate new SSH keys with: ssh-keygen -t ed25519 -C \"your_email@example.com\""
+    fi
+
+    if [ -d "$DOTFILES_DIR/.git" ]; then
+        log_info "Switching dotfiles repo remote to SSH..."
+        cd "$DOTFILES_DIR"
+        git remote set-url origin git@github.com:Shrishesha4/dotfiles.git
+        log_success "Dotfiles repo remote set to SSH"
     fi
 }
 
