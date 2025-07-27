@@ -130,15 +130,20 @@ install_cursor_editor() {
     log_info "hdiutil attach output: $MOUNT_OUTPUT"
     MOUNT_DIR=$(echo "$MOUNT_OUTPUT" | grep '/Volumes/' | awk '{print $NF}')
     if [ -z "$MOUNT_DIR" ]; then
-        # Fallback: find any .app in /Volumes
-        log_info "Falling back to searching for Cursor.app in /Volumes"
-        MOUNT_DIR=$(find /Volumes -maxdepth 2 -type d -name "Cursor.app" -print -quit | xargs -I{} dirname {})
-        log_info "Fallback mount dir: $MOUNT_DIR"
+        # Fallback: find Cursor.app or Cursor in any /Volumes/* directory
+        log_info "Falling back to searching for Cursor.app or Cursor in /Volumes/*"
+        APP_PATH=$(find /Volumes -maxdepth 2 -type d \( -name "Cursor.app" -o -name "Cursor" \) -print -quit)
+        if [ -n "$APP_PATH" ]; then
+            MOUNT_DIR=$(dirname "$APP_PATH")
+            log_info "Found app at $APP_PATH, using mount dir: $MOUNT_DIR"
+        else
+            log_error "Failed to find any Cursor.app or Cursor directory in /Volumes."
+            ls -l /Volumes
+            return 1
+        fi
     fi
-    if [ -z "$MOUNT_DIR" ] || { [ ! -d "$MOUNT_DIR/Cursor.app" ] && [ ! -d "$MOUNT_DIR/Cursor" ]; }; then
-        log_error "Failed to find Cursor.app or Cursor in mounted DMG. Contents of /Volumes:"
-        ls -l /Volumes
-        log_error "Contents of $MOUNT_DIR:"
+    if [ ! -d "$MOUNT_DIR/Cursor.app" ] && [ ! -d "$MOUNT_DIR/Cursor" ]; then
+        log_error "Failed to find Cursor.app or Cursor in $MOUNT_DIR. Listing contents:"
         ls -l "$MOUNT_DIR"
         return 1
     fi
