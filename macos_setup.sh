@@ -128,7 +128,7 @@ install_cursor_editor() {
     # Mount the DMG and get the mount point
     MOUNT_OUTPUT=$(hdiutil attach "$CURSOR_DMG")
     log_info "hdiutil attach output: $MOUNT_OUTPUT"
-    MOUNT_DIR=$(echo "$MOUNT_OUTPUT" | grep -E '/Volumes/.*Cursor Installer' | awk '{print $3}')
+    MOUNT_DIR=$(echo "$MOUNT_OUTPUT" | grep '/Volumes/' | awk '{print $NF}')
     if [ -z "$MOUNT_DIR" ]; then
         # Fallback: find any .app in /Volumes
         log_info "Falling back to searching for Cursor.app in /Volumes"
