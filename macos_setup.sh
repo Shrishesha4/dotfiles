@@ -51,11 +51,26 @@ prompt_user() {
     fi
 }
 
+safe_execute() {
+    local description="$1"
+    shift
+    log_info "$description"
+    
+    if "$@"; then
+        return 0
+    else
+        log_warning "$description failed, but continuing with setup..."
+        return 1
+    fi
+}
+
+
 # Cleanup function for trap
 cleanup() {
     if [ $? -ne 0 ]; then
         log_error "Script failed. Check the logs above for details."
         log_info "Backup directory: $BACKUP_DIR"
+        log_info "You can continue the setup manually or re-run specific functions"
     fi
 }
 
@@ -66,27 +81,37 @@ trap cleanup EXIT
 main() {
     log_info "Starting macOS Developer Environment Setup..."
     log_info "Backup directory: $BACKUP_DIR"
-
+    
     # Create backup directory
     mkdir -p "$BACKUP_DIR"
-
-    install_xcode_cli
-    setup_dotfiles_repo
-    install_code_editor
-    install_fonts
-    setup_homebrew
-    setup_oh_my_zsh
-    setup_ssh_keys
-    setup_python
-    setup_ruby
-    symlink_dotfiles
-    setup_terminal_profile
-    setup_macos_customizations
+    
+    # Track overall success
+    local setup_errors=0
+    
+    install_xcode_cli || ((setup_errors++))
+    setup_dotfiles_repo || ((setup_errors++))
+    install_code_editor || ((setup_errors++))
+    install_fonts || ((setup_errors++))
+    setup_homebrew || ((setup_errors++))
+    setup_oh_my_zsh || ((setup_errors++))
+    setup_ssh_keys || ((setup_errors++))
+    setup_python || ((setup_errors++))
+    setup_ruby || ((setup_errors++))
+    symlink_dotfiles || ((setup_errors++))
+    setup_terminal_profile || ((setup_errors++))
+    setup_macos_customizations || ((setup_errors++))
     final_steps
-
-    log_success "Setup completed successfully!"
+    
+    if [ $setup_errors -eq 0 ]; then
+        log_success "Setup completed successfully with no errors!"
+    else
+        log_warning "Setup completed with $setup_errors function(s) having issues"
+        log_info "Check the logs above for details on what failed"
+    fi
+    
     log_info "Please restart your terminal or run 'source ~/.zshrc' to apply changes."
 }
+
 
 install_xcode_cli() {
     log_info "Checking for Xcode Command Line Tools..."
@@ -308,37 +333,29 @@ setup_editor_cli_tools() {
         fi
     fi
     
-    # Setup VS Code CLI if VS Code is installed
+    # Setup VS Code CLI using proper method
     if [ -d "/Applications/Visual Studio Code.app" ]; then
-        # Try multiple possible CLI paths for VS Code
-        local vscode_cli_paths=(
-            "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code"
-            "/Applications/Visual Studio Code.app/Contents/MacOS/Electron"
-            "/Applications/Visual Studio Code.app/Contents/Resources/bin/code"
-        )
+        log_info "Setting up VS Code CLI..."
         
-        local vscode_cli_found=false
-        for cli_path in "${vscode_cli_paths[@]}"; do
-            if [ -e "$cli_path" ]; then
-                if [ ! -L "/usr/local/bin/code" ]; then
-                    log_info "Linking VS Code CLI from $cli_path to /usr/local/bin/code..."
-                    sudo ln -sf "$cli_path" /usr/local/bin/code
-                    log_success "'code' CLI linked to /usr/local/bin/code."
-                fi
-                vscode_cli_found=true
-                break
+        # Check if code command already exists and works
+        if command -v code >/dev/null 2>&1; then
+            log_success "VS Code CLI already installed and working"
+        else
+            # Remove any existing broken symlink
+            if [ -L "/usr/local/bin/code" ]; then
+                log_info "Removing existing broken VS Code CLI symlink..."
+                sudo rm -f "/usr/local/bin/code"
             fi
-        done
-        
-        if [ "$vscode_cli_found" = false ]; then
-            log_warning "VS Code CLI binary not found in expected locations"
-            log_info "You can manually install the VS Code CLI by:"
-            log_info "1. Opening VS Code"
-            log_info "2. Opening Command Palette (Cmd+Shift+P)"
-            log_info "3. Running 'Shell Command: Install 'code' command in PATH'"
+            
+            log_warning "VS Code CLI requires manual setup:"
+            log_info "1. Open VS Code"
+            log_info "2. Press Cmd+Shift+P to open Command Palette"
+            log_info "3. Type 'Shell Command: Install code command in PATH'"
+            log_info "4. Select that option and enter your password when prompted"
         fi
     fi
 }
+
 
 
 setup_dotfiles_repo() {
