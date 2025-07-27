@@ -25,7 +25,7 @@ This repository contains a one-command setup script to bootstrap a complete macO
 Run this command in your terminal:
 
 ```sh
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Shrishesha4/dotfiles/main/macos_setup.sh)"
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Shrishesha4/dotfiles/public/macos_setup.sh)"
 ```
 
 The script will:
