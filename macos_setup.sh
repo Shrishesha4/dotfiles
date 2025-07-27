@@ -72,7 +72,7 @@ main() {
 
     install_xcode_cli
     setup_dotfiles_repo
-    install_cursor_editor
+    install_code_editor
     install_fonts
     setup_homebrew
     setup_oh_my_zsh
@@ -103,24 +103,93 @@ install_xcode_cli() {
     fi
 }
 
-install_cursor_editor() {
-    log_info "Checking for Cursor editor..."
+install_code_editor() {
+    log_info "Choosing code editor..."
     
-    # Check if Cursor is already installed
+    # Check if either editor is already installed
+    local cursor_installed=false
+    local vscode_installed=false
+    
     if [ -d "/Applications/Cursor.app" ]; then
-        log_success "Cursor editor is already installed at /Applications/Cursor.app"
-        
-        # Still check and link CLI if it's not already linked
-        if [ -e "/Applications/Cursor.app/Contents/Resources/bin/cursor" ] && [ ! -L "/usr/local/bin/cursor" ]; then
-            log_info "Linking Cursor CLI to /usr/local/bin/cursor..."
-            sudo ln -sf "/Applications/Cursor.app/Contents/Resources/bin/cursor" /usr/local/bin/cursor
-            log_success "'cursor' CLI linked to /usr/local/bin/cursor."
-        fi
-        
+        cursor_installed=true
+        log_info "✓ Cursor is already installed"
+    fi
+    
+    if [ -d "/Applications/Visual Studio Code.app" ]; then
+        vscode_installed=true
+        log_info "✓ VS Code is already installed"
+    fi
+    
+    # If both are installed, ask which one to use as default
+    if [ "$cursor_installed" = true ] && [ "$vscode_installed" = true ]; then
+        log_info "Both editors are installed. Setting up CLI tools..."
+        setup_editor_cli_tools
         return 0
     fi
     
-    log_info "Cursor editor not found. Installing..."
+    # If one is installed, ask if user wants the other
+    if [ "$cursor_installed" = true ]; then
+        echo
+        read -p "Cursor is already installed. Do you also want to install VS Code? (y/N) " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            install_vscode
+        fi
+        setup_editor_cli_tools
+        return 0
+    fi
+    
+    if [ "$vscode_installed" = true ]; then
+        echo
+        read -p "VS Code is already installed. Do you also want to install Cursor? (y/N) " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            install_cursor
+        fi
+        setup_editor_cli_tools
+        return 0
+    fi
+    
+    # Neither is installed, ask user to choose
+    echo
+    echo "Choose your preferred code editor:"
+    echo "1) Cursor (AI-powered code editor)"
+    echo "2) VS Code (Microsoft's code editor)"
+    echo "3) Both"
+    echo "4) Skip editor installation"
+    echo
+    read -p "Enter your choice (1-4): " -n 1 -r
+    echo
+    
+    case $REPLY in
+        1)
+            log_info "Installing Cursor..."
+            install_cursor
+            ;;
+        2)
+            log_info "Installing VS Code..."
+            install_vscode
+            ;;
+        3)
+            log_info "Installing both editors..."
+            install_cursor
+            install_vscode
+            ;;
+        4)
+            log_info "Skipping editor installation"
+            return 0
+            ;;
+        *)
+            log_warning "Invalid choice. Defaulting to Cursor..."
+            install_cursor
+            ;;
+    esac
+    
+    setup_editor_cli_tools
+}
+
+install_cursor() {
+    log_info "Installing Cursor editor..."
     
     # Fetch latest Cursor download URL from API
     CURSOR_API_URL="https://cursor.com/api/download?platform=darwin-universal&releaseTrack=stable"
@@ -186,15 +255,69 @@ install_cursor_editor() {
     # Unmount the DMG
     hdiutil detach "$MOUNT_DIR"
     
-    # Optionally add CLI to /usr/local/bin if available
-    if [ -e "/Applications/Cursor.app/Contents/Resources/bin/cursor" ]; then
-        sudo ln -sf "/Applications/Cursor.app/Contents/Resources/bin/cursor" /usr/local/bin/cursor
-        log_success "'cursor' CLI linked to /usr/local/bin/cursor."
-    fi
-    
     # Clean up
     rm -f "$CURSOR_DMG"
 }
+
+install_vscode() {
+    log_info "Installing VS Code..."
+    
+    VSCODE_ZIP="/tmp/VSCode.zip"
+    VSCODE_URL="https://code.visualstudio.com/sha/download?build=stable&os=darwin-universal"
+    
+    log_info "Downloading VS Code from $VSCODE_URL ..."
+    curl -L -o "$VSCODE_ZIP" "$VSCODE_URL"
+    
+    if [ $? -ne 0 ]; then
+        log_error "Failed to download VS Code."
+        return 1
+    fi
+    
+    log_info "Extracting VS Code..."
+    unzip -q "$VSCODE_ZIP" -d /tmp/
+    
+    if [ -d "/tmp/Visual Studio Code.app" ]; then
+        log_info "Copying VS Code to /Applications/"
+        cp -R "/tmp/Visual Studio Code.app" /Applications/
+        
+        if [ $? -eq 0 ]; then
+            log_success "VS Code installed to /Applications."
+        else
+            log_error "Failed to copy VS Code to /Applications."
+        fi
+        
+        # Clean up
+        rm -rf "/tmp/Visual Studio Code.app"
+    else
+        log_error "Failed to extract VS Code properly."
+    fi
+    
+    # Clean up
+    rm -f "$VSCODE_ZIP"
+}
+
+setup_editor_cli_tools() {
+    log_info "Setting up CLI tools..."
+    
+    # Setup Cursor CLI if Cursor is installed
+    if [ -d "/Applications/Cursor.app" ]; then
+        if [ -e "/Applications/Cursor.app/Contents/Resources/bin/cursor" ] && [ ! -L "/usr/local/bin/cursor" ]; then
+            log_info "Linking Cursor CLI to /usr/local/bin/cursor..."
+            sudo ln -sf "/Applications/Cursor.app/Contents/Resources/bin/cursor" /usr/local/bin/cursor
+            log_success "'cursor' CLI linked to /usr/local/bin/cursor."
+        fi
+    fi
+    
+    # Setup VS Code CLI if VS Code is installed
+    if [ -d "/Applications/Visual Studio Code.app" ]; then
+        if [ -e "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code" ] && [ ! -L "/usr/local/bin/code" ]; then
+            log_info "Linking VS Code CLI to /usr/local/bin/code..."
+            sudo ln -sf "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code" /usr/local/bin/code
+            log_success "'code' CLI linked to /usr/local/bin/code."
+        fi
+    fi
+}
+
 
 setup_dotfiles_repo() {
     log_info "Setting up dotfiles repository..."
