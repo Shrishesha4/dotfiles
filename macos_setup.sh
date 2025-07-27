@@ -98,9 +98,9 @@ main() {
     setup_ssh_keys || ((setup_errors++))
     setup_python || ((setup_errors++))
     setup_ruby || ((setup_errors++))
+    install_additional_apps || ((setup_errors++))
     setup_terminal_profile || ((setup_errors++))
     setup_macos_customizations || ((setup_errors++))
-    install_additional_apps || ((setup_errors++))
     final_steps || ((setup_errors++))
     
     if [ $setup_errors -eq 0 ]; then
