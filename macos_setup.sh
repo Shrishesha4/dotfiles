@@ -127,15 +127,22 @@ install_cursor_editor() {
     fi
     # Mount the DMG and get the mount point
     MOUNT_OUTPUT=$(hdiutil attach "$CURSOR_DMG")
+    log_info "hdiutil attach output: $MOUNT_OUTPUT"
     MOUNT_DIR=$(echo "$MOUNT_OUTPUT" | grep -E '/Volumes/.*Cursor Installer' | awk '{print $3}')
     if [ -z "$MOUNT_DIR" ]; then
         # Fallback: find any .app in /Volumes
+        log_info "Falling back to searching for Cursor.app in /Volumes"
         MOUNT_DIR=$(find /Volumes -maxdepth 2 -type d -name "Cursor.app" -print -quit | xargs -I{} dirname {})
+        log_info "Fallback mount dir: $MOUNT_DIR"
     fi
     if [ -z "$MOUNT_DIR" ] || [ ! -d "$MOUNT_DIR/Cursor.app" ]; then
-        log_error "Failed to find Cursor.app in mounted DMG."
+        log_error "Failed to find Cursor.app in mounted DMG. Contents of /Volumes:"
+        ls -l /Volumes
+        log_error "Contents of $MOUNT_DIR:"
+        ls -l "$MOUNT_DIR"
         return 1
     fi
+    log_info "Copying $MOUNT_DIR/Cursor.app to /Applications/"
     cp -R "$MOUNT_DIR/Cursor.app" /Applications/
     if [ $? -eq 0 ]; then
         log_success "Cursor editor installed to /Applications."
