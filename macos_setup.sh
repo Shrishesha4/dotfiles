@@ -85,12 +85,12 @@ for arg in "$@"; do
 done
 
 # Unicode icons for pretty output
-ICON_INFO="\U1F4C4"      # 📄
-ICON_SUCCESS="\U2705"    # ✅
-ICON_WARNING="\U26A0"    # ⚠️
-ICON_ERROR="\U274C"      # ❌
-ICON_STEP="\U23F3"       # ⏳
-ICON_DONE="\U1F389"      # 🎉
+ICON_INFO="📄"      # 📄
+ICON_SUCCESS="✅"    # ✅
+ICON_WARNING="⚠️"    # ⚠️
+ICON_ERROR="❌"      # ❌
+ICON_STEP="⏳"       # ⏳
+ICON_DONE="🎉"      # 🎉
 
 # Logging functions (now respect VERBOSE)
 log_info() {
