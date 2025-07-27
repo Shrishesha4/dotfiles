@@ -14,21 +14,122 @@ DOTFILES_REPO="https://github.com/Shrishesha4/dotfiles.git"
 DOTFILES_DIR="$HOME/dotfiles"
 BACKUP_DIR="$HOME/dotfiles_backup_$(date +%Y%m%d_%H%M%S)"
 
-# Logging functions
+# Progress tracking variables
+TOTAL_STEPS=12
+CURRENT_STEP=0
+
+# Enhanced logging functions with progress
+show_progress() {
+    CURRENT_STEP=$((CURRENT_STEP + 1))
+    local percentage=$((CURRENT_STEP * 100 / TOTAL_STEPS))
+    echo -e "${BLUE}[${CURRENT_STEP}/${TOTAL_STEPS}]${NC} ${GREEN}${percentage}%${NC} - $1"
+}
+
+show_step() {
+    echo -e "\n${BLUE}▶${NC} $1"
+}
+
+show_success() {
+    echo -e "${GREEN}✓${NC} $1"
+}
+
+show_warning() {
+    echo -e "${YELLOW}⚠${NC} $1"
+}
+
+show_error() {
+    echo -e "${RED}✗${NC} $1"
+}
+
+# Silent execution wrapper
+execute_silently() {
+    local description="$1"
+    shift
+    
+    # Show spinner while executing
+    "$@" > /tmp/setup_output.log 2>&1 &
+    local pid=$!
+    
+    local spinner='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+    local i=0
+    
+    while kill -0 $pid 2>/dev/null; do
+        printf "\r${BLUE}${spinner:$i:1}${NC} $description"
+        i=$(((i + 1) % ${#spinner}))
+        sleep 0.1
+    done
+    
+    wait $pid
+    local exit_code=$?
+    
+    printf "\r"
+    if [ $exit_code -eq 0 ]; then
+        show_success "$description"
+    else
+        show_error "$description failed"
+        if [ -s /tmp/setup_output.log ]; then
+            echo -e "${YELLOW}Error details:${NC}"
+            tail -5 /tmp/setup_output.log
+        fi
+    fi
+    
+    return $exit_code
+}
+
+# Parse arguments for verbose mode
+VERBOSE=0
+for arg in "$@"; do
+    if [[ "$arg" == "--v" || "$arg" == "--verbose" ]]; then
+        VERBOSE=1
+    fi
+    # Remove the flag from positional parameters
+    shift
+    set -- "$@"
+    shift
+    break
+    fi
+
+done
+
+# Unicode icons for pretty output
+ICON_INFO="\U1F4C4"      # 📄
+ICON_SUCCESS="\U2705"    # ✅
+ICON_WARNING="\U26A0"    # ⚠️
+ICON_ERROR="\U274C"      # ❌
+ICON_STEP="\U23F3"       # ⏳
+ICON_DONE="\U1F389"      # 🎉
+
+# Logging functions (now respect VERBOSE)
 log_info() {
-    echo -e "${BLUE}[INFO]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $1"
+    local msg="$1"
+    if [ "$VERBOSE" -eq 1 ]; then
+        echo -e "${BLUE}${ICON_INFO} [INFO]${NC} $msg"
+    fi
 }
 
 log_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $1"
+    local msg="$1"
+    echo -e "${GREEN}${ICON_SUCCESS} [SUCCESS]${NC} $msg"
 }
 
 log_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $1"
+    local msg="$1"
+    echo -e "${YELLOW}${ICON_WARNING} [WARNING]${NC} $msg"
 }
 
 log_error() {
-    echo -e "${RED}[ERROR]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $1"
+    local msg="$1"
+    echo -e "${RED}${ICON_ERROR} [ERROR]${NC} $msg"
+}
+
+log_step() {
+    local msg="$1"
+    echo -e "${BLUE}${ICON_STEP} [STEP]${NC} $msg"
+}
+
+log_done() {
+    local msg="$1"
+    echo -e "${GREEN}${ICON_DONE} [DONE]${NC} $msg"
 }
 
 # Check if command exists
@@ -79,7 +180,7 @@ trap cleanup EXIT
 
 # Main setup function
 main() {
-    log_info "Starting macOS Developer Environment Setup..."
+    log_step "Starting macOS Developer Environment Setup..."
     log_info "Backup directory: $BACKUP_DIR"
     
     # Create backup directory
@@ -88,26 +189,39 @@ main() {
     # Track overall success
     local setup_errors=0
     
+    log_step "Checking Xcode Command Line Tools..."
     install_xcode_cli || ((setup_errors++))
+    log_step "Cloning and setting up dotfiles..."
     setup_dotfiles_repo || ((setup_errors++))
+    log_step "Symlinking dotfiles..."
     symlink_dotfiles || ((setup_errors++))
+    log_step "Installing code editor(s)..."
     install_code_editor || ((setup_errors++))
+    log_step "Installing fonts..."
     install_fonts || ((setup_errors++))
+    log_step "Setting up Homebrew and packages..."
     setup_homebrew || ((setup_errors++))
+    log_step "Configuring Oh My Zsh and Powerlevel10k..."
     setup_oh_my_zsh || ((setup_errors++))
+    log_step "Setting up SSH keys..."
     setup_ssh_keys || ((setup_errors++))
+    log_step "Installing Python..."
     setup_python || ((setup_errors++))
+    log_step "Installing Ruby..."
     setup_ruby || ((setup_errors++))
+    log_step "Installing additional applications..."
     install_additional_apps || ((setup_errors++))
+    log_step "Configuring Terminal profile..."
     setup_terminal_profile || ((setup_errors++))
+    log_step "Applying macOS customizations..."
     setup_macos_customizations || ((setup_errors++))
+    log_step "Finalizing setup..."
     final_steps || ((setup_errors++))
     
     if [ $setup_errors -eq 0 ]; then
-        log_success "Setup completed successfully with no errors!"
+        log_done "Setup completed successfully with no errors!"
     else
-        log_warning "Setup completed with $setup_errors function(s) having issues"
-        log_info "Check the logs above for details on what failed"
+        log_warning "Setup completed with $setup_errors function(s) having issues. Check the logs above for details."
     fi
     
     log_info "Please restart your terminal or run 'source ~/.zshrc' to apply changes."
@@ -115,7 +229,7 @@ main() {
 
 
 install_xcode_cli() {
-    log_info "Checking for Xcode Command Line Tools..."
+    log_step "Checking for Xcode Command Line Tools..."
     if ! xcode-select -p &>/dev/null; then
         log_info "Xcode Command Line Tools not found. Installing..."
         xcode-select --install
@@ -123,14 +237,14 @@ install_xcode_cli() {
         until xcode-select -p &>/dev/null; do
             sleep 5
         done
-        log_success "Xcode Command Line Tools installed."
+        log_done "Xcode Command Line Tools installed."
     else
-        log_info "Xcode Command Line Tools already installed."
+        log_done "Xcode Command Line Tools already installed."
     fi
 }
 
 install_code_editor() {
-    log_info "Choosing code editor..."
+    log_step "Choosing code editor..."
     
     # Check if either editor is already installed
     local cursor_installed=false
@@ -138,12 +252,12 @@ install_code_editor() {
     
     if [ -d "/Applications/Cursor.app" ]; then
         cursor_installed=true
-        log_info "✓ Cursor is already installed"
+        log_done "✓ Cursor is already installed"
     fi
     
     if [ -d "/Applications/Visual Studio Code.app" ]; then
         vscode_installed=true
-        log_info "✓ VS Code is already installed"
+        log_done "✓ VS Code is already installed"
     fi
     
     # If both are installed, ask which one to use as default
@@ -215,7 +329,7 @@ install_code_editor() {
 }
 
 install_cursor() {
-    log_info "Installing Cursor editor..."
+    log_step "Installing Cursor editor..."
     
     # Fetch latest Cursor download URL from API
     CURSOR_API_URL="https://cursor.com/api/download?platform=darwin-universal&releaseTrack=stable"
@@ -273,7 +387,7 @@ install_cursor() {
     cp -R "$APP_PATH" /Applications/
     
     if [ $? -eq 0 ]; then
-        log_success "Cursor editor installed to /Applications."
+        log_done "Cursor editor installed to /Applications."
     else
         log_error "Failed to copy Cursor.app to /Applications."
     fi
@@ -286,7 +400,7 @@ install_cursor() {
 }
 
 install_vscode() {
-    log_info "Installing VS Code..."
+    log_step "Installing VS Code..."
     
     VSCODE_ZIP="/tmp/VSCode.zip"
     VSCODE_URL="https://code.visualstudio.com/sha/download?build=stable&os=darwin-universal"
@@ -307,7 +421,7 @@ install_vscode() {
         cp -R "/tmp/Visual Studio Code.app" /Applications/
         
         if [ $? -eq 0 ]; then
-            log_success "VS Code installed to /Applications."
+            log_done "VS Code installed to /Applications."
         else
             log_error "Failed to copy VS Code to /Applications."
         fi
@@ -323,14 +437,14 @@ install_vscode() {
 }
 
 setup_editor_cli_tools() {
-    log_info "Setting up CLI tools..."
+    log_step "Setting up CLI tools..."
     
     # Setup Cursor CLI if Cursor is installed
     if [ -d "/Applications/Cursor.app" ]; then
         if [ -e "/Applications/Cursor.app/Contents/Resources/bin/cursor" ] && [ ! -L "/usr/local/bin/cursor" ]; then
             log_info "Linking Cursor CLI to /usr/local/bin/cursor..."
             sudo ln -sf "/Applications/Cursor.app/Contents/Resources/bin/cursor" /usr/local/bin/cursor
-            log_success "'cursor' CLI linked to /usr/local/bin/cursor."
+            log_done "'cursor' CLI linked to /usr/local/bin/cursor."
         fi
     fi
     
@@ -340,7 +454,7 @@ setup_editor_cli_tools() {
         
         # Check if code command already exists and works
         if command -v code >/dev/null 2>&1; then
-            log_success "VS Code CLI already installed and working"
+            log_done "VS Code CLI already installed and working"
         else
             # Remove any existing broken symlink
             if [ -L "/usr/local/bin/code" ]; then
@@ -358,7 +472,7 @@ setup_editor_cli_tools() {
 }
 
 install_additional_apps() {
-    log_info "Installing additional applications..."
+    log_step "Installing additional applications..."
     
     echo
     echo "Choose which applications to install:"
@@ -420,11 +534,11 @@ select_individual_apps() {
 }
 
 install_xcode_from_appstore() {
-    log_info "Installing Xcode from App Store..."
+    log_step "Installing Xcode from App Store..."
     
     # Check if Xcode is already installed
     if [ -d "/Applications/Xcode.app" ]; then
-        log_success "Xcode is already installed"
+        log_done "Xcode is already installed"
         return 0
     fi
     
@@ -445,7 +559,7 @@ install_xcode_from_appstore() {
     mas install 497799835 # Xcode App Store ID
     
     if [ $? -eq 0 ]; then
-        log_success "Xcode installed successfully"
+        log_done "Xcode installed successfully"
         
         # Accept Xcode license
         log_info "Accepting Xcode license..."
@@ -455,18 +569,18 @@ install_xcode_from_appstore() {
         log_info "Installing additional Xcode components..."
         sudo xcodebuild -runFirstLaunch
         
-        log_success "Xcode setup completed"
+        log_done "Xcode setup completed"
     else
         log_error "Failed to install Xcode from App Store"
     fi
 }
 
 install_docker() {
-    log_info "Installing Docker..."
+    log_step "Installing Docker..."
     
     # Check if Docker is already installed
     if [ -d "/Applications/Docker.app" ]; then
-        log_success "Docker is already installed"
+        log_done "Docker is already installed"
         return 0
     fi
     
@@ -504,7 +618,7 @@ install_docker() {
     cp -R "$app_path" /Applications/
     
     if [ $? -eq 0 ]; then
-        log_success "Docker installed successfully"
+        log_done "Docker installed successfully"
     else
         log_error "Failed to install Docker"
     fi
@@ -515,11 +629,11 @@ install_docker() {
 }
 
 install_brave_browser() {
-    log_info "Installing Brave Browser..."
+    log_step "Installing Brave Browser..."
     
     # Check if Brave is already installed
     if [ -d "/Applications/Brave Browser.app" ]; then
-        log_success "Brave Browser is already installed"
+        log_done "Brave Browser is already installed"
         return 0
     fi
     
@@ -557,7 +671,7 @@ install_brave_browser() {
     cp -R "$app_path" /Applications/
     
     if [ $? -eq 0 ]; then
-        log_success "Brave Browser installed successfully"
+        log_done "Brave Browser installed successfully"
     else
         log_error "Failed to install Brave Browser"
     fi
@@ -568,11 +682,11 @@ install_brave_browser() {
 }
 
 install_android_studio() {
-    log_info "Installing Android Studio..."
+    log_step "Installing Android Studio..."
     
     # Check if Android Studio is already installed
     if [ -d "/Applications/Android Studio.app" ]; then
-        log_success "Android Studio is already installed"
+        log_done "Android Studio is already installed"
         return 0
     fi
     
@@ -611,7 +725,7 @@ install_android_studio() {
     cp -R "$app_path" /Applications/
     
     if [ $? -eq 0 ]; then
-        log_success "Android Studio installed successfully"
+        log_done "Android Studio installed successfully"
         log_info "Note: You'll need to complete Android Studio setup on first launch"
     else
         log_error "Failed to install Android Studio"
@@ -623,7 +737,7 @@ install_android_studio() {
 }
 
 setup_dotfiles_repo() {
-    log_info "Setting up dotfiles repository..."
+    log_step "Setting up dotfiles repository..."
 
     if [ -d "$DOTFILES_DIR" ]; then
         log_warning "Dotfiles directory already exists at $DOTFILES_DIR"
@@ -643,7 +757,7 @@ setup_dotfiles_repo() {
     fi
 
     if [ -d "$DOTFILES_DIR" ]; then
-        log_success "Dotfiles repository setup completed"
+        log_done "Dotfiles repository setup completed"
     else
         log_error "Failed to setup dotfiles repository"
         exit 1
@@ -651,11 +765,11 @@ setup_dotfiles_repo() {
 }
 
 setup_homebrew() {
-    log_info "Setting up Homebrew..."
+    log_step "Setting up Homebrew..."
 
     # Check if Homebrew is already installed
     if command_exists brew; then
-        log_info "Homebrew is already installed. Skipping installation."
+        log_done "Homebrew is already installed. Skipping installation."
         # Add Homebrew to PATH for Apple Silicon Macs if not already present
         if [[ $(uname -m) == "arm64" ]]; then
             if ! grep -q '/opt/homebrew/bin' ~/.zprofile 2>/dev/null; then
@@ -669,7 +783,7 @@ setup_homebrew() {
             fi
         fi
         brew update
-        log_success "Homebrew updated"
+        log_done "Homebrew updated"
     else
         log_info "Installing Homebrew..."
         /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
@@ -682,7 +796,7 @@ setup_homebrew() {
             echo 'eval "$(/usr/local/bin/brew shellenv)"' >> ~/.zprofile
             eval "$(/usr/local/bin/brew shellenv)"
         fi
-        log_success "Homebrew installed successfully"
+        log_done "Homebrew installed successfully"
     fi
 
     # Use brew bundle with Brewfile from dotfiles repo
@@ -690,7 +804,7 @@ setup_homebrew() {
         log_info "Installing packages from Brewfile..."
         cd "$DOTFILES_DIR"
         brew bundle install || log_warning "Some packages might have failed to install"
-        log_success "Homebrew packages installed from Brewfile"
+        log_done "Homebrew packages installed from Brewfile"
     else
         log_warning "Brewfile not found in dotfiles repo, installing essential packages manually..."
 
@@ -705,14 +819,14 @@ setup_homebrew() {
                 log_info "Installing $package..."
                 brew install "$package" || log_warning "Failed to install $package"
             else
-                log_info "$package already installed"
+                log_done "$package already installed"
             fi
         done
     fi
 }
 
 setup_ssh_keys() {
-    log_info "Setting up SSH keys..."
+    log_step "Setting up SSH keys..."
 
     # Create .ssh directory if it doesn't exist
     mkdir -p ~/.ssh
@@ -762,7 +876,7 @@ EOF
         eval "$(ssh-agent -s)"
         ssh-add --apple-use-keychain ~/.ssh/id_ed25519 2>/dev/null || ssh-add ~/.ssh/id_ed25519
 
-        log_success "SSH keys configured successfully"
+        log_done "SSH keys configured successfully"
     else
         log_warning "SSH keys not found in dotfiles repo"
         log_info "You can generate new SSH keys with: ssh-keygen -t ed25519 -C \"your_email@example.com\""
@@ -772,12 +886,12 @@ EOF
         log_info "Switching dotfiles repo remote to SSH..."
         cd "$DOTFILES_DIR"
         git remote set-url origin git@github.com:Shrishesha4/dotfiles.git
-        log_success "Dotfiles repo remote set to SSH"
+        log_done "Dotfiles repo remote set to SSH"
     fi
 }
 
 setup_python() {
-    log_info "Setting up Python with pyenv..."
+    log_step "Setting up Python with pyenv..."
 
     if ! command_exists pyenv; then
         log_error "pyenv not found. Make sure Homebrew installation completed successfully."
@@ -818,7 +932,7 @@ setup_python() {
             log_info "Installing Python $version..."
             pyenv install "$version" || log_warning "Failed to install Python $version"
         else
-            log_info "Python $version already installed"
+            log_done "Python $version already installed"
         fi
     done
 
@@ -826,11 +940,11 @@ setup_python() {
     log_info "Setting Python 3.13.5 as global default..."
     pyenv global 3.13.5 || log_warning "Failed to set global Python version"
 
-    log_success "Python setup completed"
+    log_done "Python setup completed"
 }
 
 setup_ruby() {
-    log_info "Setting up Ruby with rbenv..."
+    log_step "Setting up Ruby with rbenv..."
 
     if ! command_exists rbenv; then
         log_error "rbenv not found. Make sure Homebrew installation completed successfully."
@@ -866,18 +980,18 @@ setup_ruby() {
         log_info "Installing Ruby $ruby_version..."
         rbenv install "$ruby_version" || log_warning "Failed to install Ruby $ruby_version"
     else
-        log_info "Ruby $ruby_version already installed"
+        log_done "Ruby $ruby_version already installed"
     fi
 
     # Set global Ruby version
     log_info "Setting Ruby $ruby_version as global default..."
     rbenv global "$ruby_version" || log_warning "Failed to set global Ruby version"
 
-    log_success "Ruby setup completed"
+    log_done "Ruby setup completed"
 }
 
 install_fonts() {
-    log_info "Installing MesloLGS NF fonts..."
+    log_step "Installing MesloLGS NF fonts..."
 
     # Create fonts directory
     mkdir -p ~/Library/Fonts
@@ -898,26 +1012,26 @@ install_fonts() {
             log_info "Downloading $font_name..."
             curl -fLo "$font_path" "$font_url" || log_warning "Failed to download $font_name"
             if [ -f "$font_path" ]; then
-                log_success "$font_name installed"
+                log_done "$font_name installed"
             fi
         else
-            log_info "$font_name already exists, skipping..."
+            log_done "$font_name already exists, skipping..."
         fi
     done
 
-    log_success "MesloLGS NF fonts installation completed"
+    log_done "MesloLGS NF fonts installation completed"
 }
 
 setup_oh_my_zsh() {
-    log_info "Setting up Oh My Zsh and Powerlevel10k..."
+    log_step "Setting up Oh My Zsh and Powerlevel10k..."
 
     # Install Oh My Zsh if not present
     if [ ! -d "$HOME/.oh-my-zsh" ]; then
         log_info "Installing Oh My Zsh..."
         RUNZSH=no CHSH=no sh -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
-        log_success "Oh My Zsh installed"
+        log_done "Oh My Zsh installed"
     else
-        log_info "Oh My Zsh already installed"
+        log_done "Oh My Zsh already installed"
     fi
 
     # Install Powerlevel10k theme
@@ -925,9 +1039,9 @@ setup_oh_my_zsh() {
     if [ ! -d "$p10k_dir" ]; then
         log_info "Installing Powerlevel10k theme..."
         git clone --depth=1 https://github.com/romkatv/powerlevel10k.git "$p10k_dir"
-        log_success "Powerlevel10k installed"
+        log_done "Powerlevel10k installed"
     else
-        log_info "Powerlevel10k already installed"
+        log_done "Powerlevel10k already installed"
     fi
 
     # Install zsh plugins
@@ -937,25 +1051,25 @@ setup_oh_my_zsh() {
     if [ ! -d "$plugins_dir/zsh-autosuggestions" ]; then
         log_info "Installing zsh-autosuggestions..."
         git clone https://github.com/zsh-users/zsh-autosuggestions "$plugins_dir/zsh-autosuggestions"
-        log_success "zsh-autosuggestions installed"
+        log_done "zsh-autosuggestions installed"
     else
-        log_info "zsh-autosuggestions already installed"
+        log_done "zsh-autosuggestions already installed"
     fi
 
     # zsh-syntax-highlighting
     if [ ! -d "$plugins_dir/zsh-syntax-highlighting" ]; then
         log_info "Installing zsh-syntax-highlighting..."
         git clone https://github.com/zsh-users/zsh-syntax-highlighting.git "$plugins_dir/zsh-syntax-highlighting"
-        log_success "zsh-syntax-highlighting installed"
+        log_done "zsh-syntax-highlighting installed"
     else
-        log_info "zsh-syntax-highlighting already installed"
+        log_done "zsh-syntax-highlighting already installed"
     fi
 
-    log_success "Oh My Zsh and Powerlevel10k setup completed"
+    log_done "Oh My Zsh and Powerlevel10k setup completed"
 }
 
 symlink_dotfiles() {
-    log_info "Creating symlinks for dotfiles..."
+    log_step "Creating symlinks for dotfiles..."
     
     local dotfiles=(
         ".gitconfig"
@@ -984,17 +1098,17 @@ symlink_dotfiles() {
             
             # Create symlink
             ln -s "$source_file" "$target_file"
-            log_success "Symlinked $dotfile"
+            log_done "Symlinked $dotfile"
         else
             log_warning "$dotfile not found in dotfiles repo"
         fi
     done
     
-    log_success "Dotfiles symlinked successfully"
+    log_done "Dotfiles symlinked successfully"
 }
 
 setup_macos_customizations() {
-    log_info "Applying macOS customizations..."
+    log_step "Applying macOS customizations..."
     
     # Dock customizations
     log_info "Configuring Dock..."
@@ -1004,20 +1118,20 @@ setup_macos_customizations() {
     defaults write com.apple.dock autohide-time-modifier -float 0.4
     killall Dock
     
-    log_success "Dock configured"
+    log_done "Dock configured"
     
     # Screenshot folder setup
     log_info "Setting up screenshot folder..."
     mkdir -p ~/Documents/Screenshots
     defaults write com.apple.screencapture location ~/Documents/Screenshots
     killall SystemUIServer
-    log_success "Screenshot folder configured"
+    log_done "Screenshot folder configured"
     
-    log_success "macOS customizations applied"
+    log_done "macOS customizations applied"
 }
 
 setup_terminal_profile() {
-    log_info "Setting up terminal profile..."
+    log_step "Setting up terminal profile..."
 
     # Check if terminal profile exists in dotfiles
     local profile_file="$DOTFILES_DIR/terminal/CustomProfile.terminal"
@@ -1034,7 +1148,7 @@ tell application "Terminal"
     set default settings to settings set "CustomProfile"
 end tell
 EOF
-        log_success "Terminal profile configured"
+        log_done "Terminal profile configured"
     else
         log_warning "Terminal profile not found at $profile_file"
         log_info "=== MANUAL STEP REQUIRED ==="
@@ -1046,15 +1160,15 @@ EOF
 }
 
 final_steps() {
-    log_info "Performing final setup steps..."
+    log_step "Performing final setup steps..."
 
     # Change default shell to zsh if not already
     if [ "$SHELL" != "$(which zsh)" ]; then
         log_info "Changing default shell to zsh..."
         chsh -s "$(which zsh)"
-        log_success "Default shell changed to zsh"
+        log_done "Default shell changed to zsh"
     else
-        log_info "Default shell is already zsh"
+        log_done "Default shell is already zsh"
     fi
 
     # Final manual steps reminder
@@ -1070,7 +1184,7 @@ final_steps() {
     log_warning "4. Run 'p10k configure' to customize your Powerlevel10k theme"
     log_info "================================"
 
-    log_success "Final setup steps completed"
+    log_done "Final setup steps completed"
 }
 
 # Run main function
