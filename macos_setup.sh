@@ -104,7 +104,23 @@ install_xcode_cli() {
 }
 
 install_cursor_editor() {
-    log_info "Installing Cursor editor..."
+    log_info "Checking for Cursor editor..."
+    
+    # Check if Cursor is already installed
+    if [ -d "/Applications/Cursor.app" ]; then
+        log_success "Cursor editor is already installed at /Applications/Cursor.app"
+        
+        # Still check and link CLI if it's not already linked
+        if [ -e "/Applications/Cursor.app/Contents/Resources/bin/cursor" ] && [ ! -L "/usr/local/bin/cursor" ]; then
+            log_info "Linking Cursor CLI to /usr/local/bin/cursor..."
+            sudo ln -sf "/Applications/Cursor.app/Contents/Resources/bin/cursor" /usr/local/bin/cursor
+            log_success "'cursor' CLI linked to /usr/local/bin/cursor."
+        fi
+        
+        return 0
+    fi
+    
+    log_info "Cursor editor not found. Installing..."
     
     # Fetch latest Cursor download URL from API
     CURSOR_API_URL="https://cursor.com/api/download?platform=darwin-universal&releaseTrack=stable"
@@ -179,7 +195,6 @@ install_cursor_editor() {
     # Clean up
     rm -f "$CURSOR_DMG"
 }
-
 
 setup_dotfiles_repo() {
     log_info "Setting up dotfiles repository..."
