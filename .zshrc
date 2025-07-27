@@ -129,11 +129,6 @@ source $ZSH/oh-my-zsh.sh
 # PostgreSQL configuration
 export PATH="/opt/homebrew/opt/postgresql@15/bin:$PATH"
 
-# The following lines have been added by Docker Desktop to enable Docker CLI completions.
-fpath=(/Users/shrishesha/.docker/completions $fpath)
-autoload -Uz compinit
-compinit
-# End of Docker CLI completions
 
 # Android configuration
 export ANDROID_HOME=$HOME/Library/Android/sdk
