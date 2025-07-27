@@ -70,40 +70,18 @@ main() {
     # Create backup directory
     mkdir -p "$BACKUP_DIR"
 
-    # 0. Ensure Xcode Command Line Tools are installed
     install_xcode_cli
-
-    # 1. Clone Dotfiles Repository
-    setup_dotfiles_repo
-
-    # 2. Install Homebrew and packages
-    setup_homebrew
-
-    # 3. Setup SSH Keys
-    setup_ssh_keys
-
-    # 4. Python Setup (pyenv)
-    setup_python
-
-    # 5. Ruby Setup (rbenv)
-    setup_ruby
-
-    # 6. Install Fonts
+    install_cursor_editor
     install_fonts
-
-    # 7. Oh My Zsh + Powerlevel10k
+    setup_homebrew
     setup_oh_my_zsh
-
-    # 8. Symlink Dotfiles
+    setup_ssh_keys
+    setup_python
+    setup_ruby
+    setup_dotfiles_repo
     symlink_dotfiles
-
-    # 9. macOS Customizations
     setup_macos_customizations
-
-    # 10. Terminal Profile
     setup_terminal_profile
-
-    # 11. Final Steps
     final_steps
 
     log_success "Setup completed successfully!"
@@ -123,6 +101,52 @@ install_xcode_cli() {
     else
         log_info "Xcode Command Line Tools already installed."
     fi
+}
+
+install_cursor_editor() {
+    log_info "Installing Cursor editor..."
+    # Fetch latest Cursor download URL from API
+    CURSOR_API_URL="https://cursor.com/api/download?platform=darwin-universal&releaseTrack=stable"
+    log_info "Fetching latest Cursor download URL from $CURSOR_API_URL ..."
+    CURSOR_JSON=$(curl -fsSL "$CURSOR_API_URL")
+    if [ $? -ne 0 ] || [ -z "$CURSOR_JSON" ]; then
+        log_error "Failed to fetch Cursor download info."
+        return 1
+    fi
+    CURSOR_DMG_URL=$(echo "$CURSOR_JSON" | grep -o '"downloadUrl":"[^"]*' | head -1 | cut -d'"' -f4)
+    if [ -z "$CURSOR_DMG_URL" ]; then
+        log_error "Could not parse download URL from Cursor API response."
+        return 1
+    fi
+    log_info "Downloading Cursor from $CURSOR_DMG_URL ..."
+    CURSOR_DMG="/tmp/Cursor.dmg"
+    curl -L -o "$CURSOR_DMG" "$CURSOR_DMG_URL"
+    if [ $? -ne 0 ]; then
+        log_error "Failed to download Cursor editor."
+        return 1
+    fi
+    # Mount the DMG
+    MOUNT_DIR=$(hdiutil attach "$CURSOR_DMG" | grep Volumes | awk '{print $3}')
+    if [ -z "$MOUNT_DIR" ]; then
+        log_error "Failed to mount Cursor DMG."
+        return 1
+    fi
+    # Copy Cursor.app to /Applications
+    cp -R "$MOUNT_DIR/Cursor.app" /Applications/
+    if [ $? -eq 0 ]; then
+        log_success "Cursor editor installed to /Applications."
+    else
+        log_error "Failed to copy Cursor.app to /Applications."
+    fi
+    # Unmount the DMG
+    hdiutil detach "$MOUNT_DIR"
+    # Optionally add CLI to /usr/local/bin if available
+    if [ -e "/Applications/Cursor.app/Contents/Resources/bin/cursor" ]; then
+        sudo ln -sf "/Applications/Cursor.app/Contents/Resources/bin/cursor" /usr/local/bin/cursor
+        log_success "'cursor' CLI linked to /usr/local/bin/cursor."
+    fi
+    # Clean up
+    rm -f "$CURSOR_DMG"
 }
 
 setup_dotfiles_repo() {
