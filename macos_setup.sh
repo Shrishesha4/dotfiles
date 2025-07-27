@@ -82,13 +82,6 @@ for arg in "$@"; do
     if [[ "$arg" == "--v" || "$arg" == "--verbose" ]]; then
         VERBOSE=1
     fi
-    # Remove the flag from positional parameters
-    shift
-    set -- "$@"
-    shift
-    break
-    fi
-
 done
 
 # Unicode icons for pretty output
