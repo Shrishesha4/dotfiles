@@ -310,10 +310,32 @@ setup_editor_cli_tools() {
     
     # Setup VS Code CLI if VS Code is installed
     if [ -d "/Applications/Visual Studio Code.app" ]; then
-        if [ -e "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code" ] && [ ! -L "/usr/local/bin/code" ]; then
-            log_info "Linking VS Code CLI to /usr/local/bin/code..."
-            sudo ln -sf "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code" /usr/local/bin/code
-            log_success "'code' CLI linked to /usr/local/bin/code."
+        # Try multiple possible CLI paths for VS Code
+        local vscode_cli_paths=(
+            "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code"
+            "/Applications/Visual Studio Code.app/Contents/MacOS/Electron"
+            "/Applications/Visual Studio Code.app/Contents/Resources/bin/code"
+        )
+        
+        local vscode_cli_found=false
+        for cli_path in "${vscode_cli_paths[@]}"; do
+            if [ -e "$cli_path" ]; then
+                if [ ! -L "/usr/local/bin/code" ]; then
+                    log_info "Linking VS Code CLI from $cli_path to /usr/local/bin/code..."
+                    sudo ln -sf "$cli_path" /usr/local/bin/code
+                    log_success "'code' CLI linked to /usr/local/bin/code."
+                fi
+                vscode_cli_found=true
+                break
+            fi
+        done
+        
+        if [ "$vscode_cli_found" = false ]; then
+            log_warning "VS Code CLI binary not found in expected locations"
+            log_info "You can manually install the VS Code CLI by:"
+            log_info "1. Opening VS Code"
+            log_info "2. Opening Command Palette (Cmd+Shift+P)"
+            log_info "3. Running 'Shell Command: Install 'code' command in PATH'"
         fi
     fi
 }
