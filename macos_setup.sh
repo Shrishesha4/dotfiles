@@ -90,6 +90,7 @@ main() {
     
     install_xcode_cli || ((setup_errors++))
     setup_dotfiles_repo || ((setup_errors++))
+    symlink_dotfiles || ((setup_errors++))
     install_code_editor || ((setup_errors++))
     install_fonts || ((setup_errors++))
     setup_homebrew || ((setup_errors++))
@@ -97,7 +98,6 @@ main() {
     setup_ssh_keys || ((setup_errors++))
     setup_python || ((setup_errors++))
     setup_ruby || ((setup_errors++))
-    symlink_dotfiles || ((setup_errors++))
     setup_terminal_profile || ((setup_errors++))
     setup_macos_customizations || ((setup_errors++))
     final_steps
@@ -344,7 +344,7 @@ setup_editor_cli_tools() {
             # Remove any existing broken symlink
             if [ -L "/usr/local/bin/code" ]; then
                 log_info "Removing existing broken VS Code CLI symlink..."
-                sudo rm -f "/usr/local/bin/code"
+                sudo rm -f "/usr/local/bin/code" 2>/dev/null || true
             fi
             
             log_warning "VS Code CLI requires manual setup:"
@@ -355,8 +355,6 @@ setup_editor_cli_tools() {
         fi
     fi
 }
-
-
 
 setup_dotfiles_repo() {
     log_info "Setting up dotfiles repository..."
@@ -692,7 +690,7 @@ setup_oh_my_zsh() {
 
 symlink_dotfiles() {
     log_info "Creating symlinks for dotfiles..."
-
+    
     local dotfiles=(
         ".gitconfig"
         ".yarnrc"
@@ -700,21 +698,24 @@ symlink_dotfiles() {
         ".p10k.zsh"
         ".zprofile"
     )
-
+    
     for dotfile in "${dotfiles[@]}"; do
         local source_file="$DOTFILES_DIR/$dotfile"
         local target_file="$HOME/$dotfile"
-
+        
         if [ -f "$source_file" ]; then
-            # Backup existing file if it exists and isn't already a symlink
-            if [ -f "$target_file" ] && [ ! -L "$target_file" ]; then
+            # Special handling for .zshrc to prevent Oh My Zsh conflicts
+            if [ "$dotfile" = ".zshrc" ] && [ -f "$target_file" ] && [ ! -L "$target_file" ]; then
+                log_warning "Backing up existing $dotfile (likely Oh My Zsh default) to $BACKUP_DIR"
+                cp "$target_file" "$BACKUP_DIR/$dotfile.backup"
+            elif [ -f "$target_file" ] && [ ! -L "$target_file" ]; then
                 log_warning "Backing up existing $dotfile to $BACKUP_DIR"
                 cp "$target_file" "$BACKUP_DIR/$dotfile.backup"
             fi
-
-            # Remove existing symlink if it exists
-            [ -L "$target_file" ] && rm "$target_file"
-
+            
+            # Remove existing file/symlink
+            [ -e "$target_file" ] && rm "$target_file"
+            
             # Create symlink
             ln -s "$source_file" "$target_file"
             log_success "Symlinked $dotfile"
@@ -722,9 +723,10 @@ symlink_dotfiles() {
             log_warning "$dotfile not found in dotfiles repo"
         fi
     done
-
+    
     log_success "Dotfiles symlinked successfully"
 }
+
 
 setup_macos_customizations() {
     log_info "Applying macOS customizations..."
