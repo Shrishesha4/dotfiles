@@ -179,11 +179,17 @@ setup_dotfiles_repo() {
 install_code_editor() {
     log_info "Choosing code editor..."
     
+    # Ensure jq is available
+    if ! command_exists jq; then
+        log_info "Installing jq for API parsing..."
+        sudo apt update && sudo apt install -y jq
+    fi
+    
     # Check if either editor is already installed
     local cursor_installed=false
     local vscode_installed=false
     
-    if command_exists cursor; then
+    if command_exists cursor || [ -f "$HOME/.local/bin/cursor" ]; then
         cursor_installed=true
         log_info "✓ Cursor is already installed"
     fi
@@ -193,38 +199,17 @@ install_code_editor() {
         log_info "✓ VS Code is already installed"
     fi
     
-    # If both are installed, setup CLI tools
+    # If both are installed, return success
     if [ "$cursor_installed" = true ] && [ "$vscode_installed" = true ]; then
         log_info "Both editors are installed."
         return 0
     fi
     
-    # If one is installed, ask if user wants the other
-    if [ "$cursor_installed" = true ]; then
-        echo
-        read -p "Cursor is already installed. Do you also want to install VS Code? (y/N) " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            install_vscode
-        fi
-        return 0
-    fi
-    
-    if [ "$vscode_installed" = true ]; then
-        echo
-        read -p "VS Code is already installed. Do you also want to install Cursor? (y/N) " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            install_cursor
-        fi
-        return 0
-    fi
-    
-    # Neither is installed, ask user to choose
+    # Show choice menu for missing editors
     echo
     echo "Choose your preferred code editor:"
     echo "1) Cursor (AI-powered code editor)"
-    echo "2) VS Code (Microsoft's code editor)"
+    echo "2) VS Code (Microsoft's code editor)"  
     echo "3) Both"
     echo "4) Skip editor installation"
     echo
@@ -233,28 +218,27 @@ install_code_editor() {
     
     case $REPLY in
         1)
-            log_info "Installing Cursor..."
-            install_cursor
+            install_cursor || log_warning "Cursor installation failed, continuing..."
             ;;
         2)
-            log_info "Installing VS Code..."
-            install_vscode
+            install_vscode || log_warning "VS Code installation failed, continuing..."
             ;;
         3)
-            log_info "Installing both editors..."
-            install_cursor
-            install_vscode
+            install_cursor || log_warning "Cursor installation failed, continuing..."
+            install_vscode || log_warning "VS Code installation failed, continuing..."
             ;;
         4)
             log_info "Skipping editor installation"
-            return 0
             ;;
         *)
-            log_warning "Invalid choice. Defaulting to VS Code..."
-            install_vscode
+            log_warning "Invalid choice. Installing VS Code as default..."
+            install_vscode || log_warning "VS Code installation failed, continuing..."
             ;;
     esac
+    
+    return 0  # Always return success to prevent script termination
 }
+
 
 install_cursor() {
     log_info "Installing Cursor editor..."
