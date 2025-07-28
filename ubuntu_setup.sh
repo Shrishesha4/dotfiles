@@ -6,7 +6,7 @@ if [[ "$1" != "--no-exit" ]]; then
 fi
 
 # Optional verbose flag for full command output
-VERBOSE=false
+VERBOSE=true
 [[ "$1" == "-v" || "$2" == "-v" ]] && VERBOSE=true
 
 # Colors for output
