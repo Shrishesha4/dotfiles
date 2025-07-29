@@ -1,24 +1,20 @@
 #!/bin/bash
 
-set -e # Exit on any error
+set -e
 
-# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Global variables
 DOTFILES_REPO="https://github.com/Shrishesha4/dotfiles.git"
 DOTFILES_DIR="$HOME/dotfiles"
 BACKUP_DIR="$HOME/dotfiles_backup_$(date +%Y%m%d_%H%M%S)"
 
-# Progress tracking variables
 TOTAL_STEPS=12
 CURRENT_STEP=0
 
-# Enhanced logging functions with progress
 show_progress() {
     CURRENT_STEP=$((CURRENT_STEP + 1))
     local percentage=$((CURRENT_STEP * 100 / TOTAL_STEPS))
@@ -41,12 +37,10 @@ show_error() {
     echo -e "${RED}✗${NC} $1"
 }
 
-# Silent execution wrapper
 execute_silently() {
     local description="$1"
     shift
     
-    # Show spinner while executing
     "$@" > /tmp/setup_output.log 2>&1 &
     local pid=$!
     
@@ -76,7 +70,6 @@ execute_silently() {
     return $exit_code
 }
 
-# Parse arguments for verbose mode
 VERBOSE=0
 for arg in "$@"; do
     if [[ "$arg" == "--v" || "$arg" == "--verbose" ]]; then
@@ -84,7 +77,6 @@ for arg in "$@"; do
     fi
 done
 
-# Unicode icons for pretty output
 ICON_INFO="📄"      # 📄
 ICON_SUCCESS="✅"    # ✅
 ICON_WARNING="⚠️"    # ⚠️
@@ -92,7 +84,6 @@ ICON_ERROR="❌"      # ❌
 ICON_STEP="⏳"       # ⏳
 ICON_DONE="🎉"      # 🎉
 
-# Logging functions (now respect VERBOSE)
 log_info() {
     local msg="$1"
     if [ "$VERBOSE" -eq 1 ]; then
@@ -125,12 +116,10 @@ log_done() {
     echo -e "${GREEN}${ICON_DONE} [DONE]${NC} $msg"
 }
 
-# Check if command exists
 command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
-# Prompt for user input
 prompt_user() {
     local prompt_text="$1"
     local default_value="$2"
@@ -159,7 +148,6 @@ safe_execute() {
 }
 
 
-# Cleanup function for trap
 cleanup() {
     if [ $? -ne 0 ]; then
         log_error "Script failed. Check the logs above for details."
@@ -168,18 +156,14 @@ cleanup() {
     fi
 }
 
-# Set trap for cleanup
 trap cleanup EXIT
 
-# Main setup function
 main() {
     log_step "Starting macOS Developer Environment Setup..."
     log_info "Backup directory: $BACKUP_DIR"
     
-    # Create backup directory
     mkdir -p "$BACKUP_DIR"
     
-    # Track overall success
     local setup_errors=0
     
     log_step "Checking Xcode Command Line Tools..."
@@ -226,7 +210,6 @@ install_xcode_cli() {
     if ! xcode-select -p &>/dev/null; then
         log_info "Xcode Command Line Tools not found. Installing..."
         xcode-select --install
-        # Wait until the tools are installed
         until xcode-select -p &>/dev/null; do
             sleep 5
         done
@@ -239,7 +222,6 @@ install_xcode_cli() {
 install_code_editor() {
     log_step "Choosing code editor..."
     
-    # Check if either editor is already installed
     local cursor_installed=false
     local vscode_installed=false
     
@@ -253,14 +235,12 @@ install_code_editor() {
         log_done "✓ VS Code is already installed"
     fi
     
-    # If both are installed, ask which one to use as default
     if [ "$cursor_installed" = true ] && [ "$vscode_installed" = true ]; then
         log_info "Both editors are installed. Setting up CLI tools..."
         setup_editor_cli_tools
         return 0
     fi
     
-    # If one is installed, ask if user wants the other
     if [ "$cursor_installed" = true ]; then
         echo
         read -p "Cursor is already installed. Do you also want to install VS Code? (y/N) " -n 1 -r
@@ -283,7 +263,6 @@ install_code_editor() {
         return 0
     fi
     
-    # Neither is installed, ask user to choose
     echo
     echo "Choose your preferred code editor:"
     echo "1) Cursor (AI-powered code editor)"
@@ -324,7 +303,6 @@ install_code_editor() {
 install_cursor() {
     log_step "Installing Cursor editor..."
     
-    # Fetch latest Cursor download URL from API
     CURSOR_API_URL="https://cursor.com/api/download?platform=darwin-universal&releaseTrack=stable"
     log_info "Fetching latest Cursor download URL from $CURSOR_API_URL ..."
     
@@ -349,11 +327,9 @@ install_cursor() {
         return 1
     fi
     
-    # Mount the DMG and get the mount point
     MOUNT_OUTPUT=$(hdiutil attach "$CURSOR_DMG")
     log_info "hdiutil attach output: $MOUNT_OUTPUT"
     
-    # Extract the actual mount directory from hdiutil output
     MOUNT_DIR=$(echo "$MOUNT_OUTPUT" | grep '/Volumes/' | tail -1 | awk '{for(i=3;i<=NF;i++) printf "%s ", $i; print ""}' | sed 's/[[:space:]]*$//')
     
     if [ -z "$MOUNT_DIR" ]; then
@@ -363,7 +339,6 @@ install_cursor() {
     
     log_info "Mount directory: $MOUNT_DIR"
     
-    # Look for Cursor.app recursively in the mount directory
     APP_PATH=$(find "$MOUNT_DIR" -name "Cursor.app" -type d -print -quit)
     
     if [ -z "$APP_PATH" ]; then
@@ -376,7 +351,6 @@ install_cursor() {
     log_info "Found Cursor.app at: $APP_PATH"
     log_info "Copying to /Applications/"
     
-    # Copy the application
     cp -R "$APP_PATH" /Applications/
     
     if [ $? -eq 0 ]; then
@@ -385,10 +359,8 @@ install_cursor() {
         log_error "Failed to copy Cursor.app to /Applications."
     fi
     
-    # Unmount the DMG
     hdiutil detach "$MOUNT_DIR"
     
-    # Clean up
     rm -f "$CURSOR_DMG"
 }
 
@@ -419,20 +391,17 @@ install_vscode() {
             log_error "Failed to copy VS Code to /Applications."
         fi
         
-        # Clean up
         rm -rf "/tmp/Visual Studio Code.app"
     else
         log_error "Failed to extract VS Code properly."
     fi
     
-    # Clean up
     rm -f "$VSCODE_ZIP"
 }
 
 setup_editor_cli_tools() {
     log_step "Setting up CLI tools..."
     
-    # Setup Cursor CLI if Cursor is installed
     if [ -d "/Applications/Cursor.app" ]; then
         if [ -e "/Applications/Cursor.app/Contents/Resources/bin/cursor" ] && [ ! -L "/usr/local/bin/cursor" ]; then
             log_info "Linking Cursor CLI to /usr/local/bin/cursor..."
@@ -441,15 +410,12 @@ setup_editor_cli_tools() {
         fi
     fi
     
-    # Setup VS Code CLI using proper method
     if [ -d "/Applications/Visual Studio Code.app" ]; then
-        log_info "Setting up VS Code CLI..."
-        
-        # Check if code command already exists and works
+        log_info "Setting up VS Code CLI..."        
+
         if command -v code >/dev/null 2>&1; then
             log_done "VS Code CLI already installed and working"
         else
-            # Remove any existing broken symlink
             if [ -L "/usr/local/bin/code" ]; then
                 log_info "Removing existing broken VS Code CLI symlink..."
                 sudo rm -f "/usr/local/bin/code" 2>/dev/null || true
@@ -479,7 +445,6 @@ install_additional_apps() {
     case $REPLY in
         1)
             install_xcode_from_appstore
-            install_docker
             install_brave_browser
             install_android_studio
             ;;
@@ -505,13 +470,6 @@ select_individual_apps() {
     fi
     
     echo
-    read -p "Install Docker? (y/N) " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        install_docker
-    fi
-    
-    echo
     read -p "Install Brave Browser? (y/N) " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
@@ -528,14 +486,12 @@ select_individual_apps() {
 
 install_xcode_from_appstore() {
     log_step "Installing Xcode from App Store..."
-    
-    # Check if Xcode is already installed
+
     if [ -d "/Applications/Xcode.app" ]; then
         log_done "Xcode is already installed"
         return 0
     fi
     
-    # Check if user is signed in to App Store
     if ! mas account >/dev/null 2>&1; then
         log_warning "Not signed in to App Store. Manual installation required:"
         log_info "1. Open App Store"
@@ -548,17 +504,14 @@ install_xcode_from_appstore() {
     log_info "Installing Xcode via App Store (this may take a while)..."
     log_warning "Xcode is ~15GB and may take 30+ minutes depending on your connection"
     
-    # Install Xcode using mas (Mac App Store CLI)
-    mas install 497799835 # Xcode App Store ID
+    mas install 497799835
     
     if [ $? -eq 0 ]; then
         log_done "Xcode installed successfully"
         
-        # Accept Xcode license
         log_info "Accepting Xcode license..."
         sudo xcodebuild -license accept
         
-        # Install additional components
         log_info "Installing additional Xcode components..."
         sudo xcodebuild -runFirstLaunch
         
@@ -568,63 +521,9 @@ install_xcode_from_appstore() {
     fi
 }
 
-install_docker() {
-    log_step "Installing Docker..."
-    
-    # Check if Docker is already installed
-    if [ -d "/Applications/Docker.app" ]; then
-        log_done "Docker is already installed"
-        return 0
-    fi
-    
-    local docker_dmg="/tmp/Docker.dmg"
-    local docker_url="https://desktop.docker.com/mac/main/arm64/Docker.dmg"
-    
-    log_info "Downloading Docker from $docker_url ..."
-    curl -L -o "$docker_dmg" "$docker_url"
-    
-    if [ $? -ne 0 ]; then
-        log_error "Failed to download Docker"
-        return 1
-    fi
-    
-    # Mount the DMG
-    log_info "Mounting Docker DMG..."
-    local mount_output=$(hdiutil attach "$docker_dmg")
-    local mount_dir=$(echo "$mount_output" | grep '/Volumes/' | tail -1 | awk '{for(i=3;i<=NF;i++) printf "%s ", $i; print ""}' | sed 's/[[:space:]]*$//')
-    
-    if [ -z "$mount_dir" ]; then
-        log_error "Failed to mount Docker DMG"
-        return 1
-    fi
-    
-    # Find Docker.app and copy it
-    local app_path=$(find "$mount_dir" -name "Docker.app" -type d -print -quit)
-    
-    if [ -z "$app_path" ]; then
-        log_error "Failed to find Docker.app in mounted DMG"
-        hdiutil detach "$mount_dir"
-        return 1
-    fi
-    
-    log_info "Installing Docker to /Applications/"
-    cp -R "$app_path" /Applications/
-    
-    if [ $? -eq 0 ]; then
-        log_done "Docker installed successfully"
-    else
-        log_error "Failed to install Docker"
-    fi
-    
-    # Clean up
-    hdiutil detach "$mount_dir"
-    rm -f "$docker_dmg"
-}
-
 install_brave_browser() {
     log_step "Installing Brave Browser..."
     
-    # Check if Brave is already installed
     if [ -d "/Applications/Brave Browser.app" ]; then
         log_done "Brave Browser is already installed"
         return 0
@@ -641,7 +540,6 @@ install_brave_browser() {
         return 1
     fi
     
-    # Mount the DMG
     log_info "Mounting Brave Browser DMG..."
     local mount_output=$(hdiutil attach "$brave_dmg")
     local mount_dir=$(echo "$mount_output" | grep '/Volumes/' | tail -1 | awk '{for(i=3;i<=NF;i++) printf "%s ", $i; print ""}' | sed 's/[[:space:]]*$//')
@@ -651,7 +549,6 @@ install_brave_browser() {
         return 1
     fi
     
-    # Find Brave Browser.app and copy it
     local app_path=$(find "$mount_dir" -name "Brave Browser.app" -type d -print -quit)
     
     if [ -z "$app_path" ]; then
@@ -669,7 +566,6 @@ install_brave_browser() {
         log_error "Failed to install Brave Browser"
     fi
     
-    # Clean up
     hdiutil detach "$mount_dir"
     rm -f "$brave_dmg"
 }
@@ -677,7 +573,6 @@ install_brave_browser() {
 install_android_studio() {
     log_step "Installing Android Studio..."
     
-    # Check if Android Studio is already installed
     if [ -d "/Applications/Android Studio.app" ]; then
         log_done "Android Studio is already installed"
         return 0
@@ -695,7 +590,6 @@ install_android_studio() {
         return 1
     fi
     
-    # Mount the DMG
     log_info "Mounting Android Studio DMG..."
     local mount_output=$(hdiutil attach "$android_dmg")
     local mount_dir=$(echo "$mount_output" | grep '/Volumes/' | tail -1 | awk '{for(i=3;i<=NF;i++) printf "%s ", $i; print ""}' | sed 's/[[:space:]]*$//')
@@ -705,7 +599,6 @@ install_android_studio() {
         return 1
     fi
     
-    # Find Android Studio.app and copy it
     local app_path=$(find "$mount_dir" -name "Android Studio.app" -type d -print -quit)
     
     if [ -z "$app_path" ]; then
@@ -724,7 +617,6 @@ install_android_studio() {
         log_error "Failed to install Android Studio"
     fi
     
-    # Clean up
     hdiutil detach "$mount_dir"
     rm -f "$android_dmg"
 }
@@ -760,10 +652,8 @@ setup_dotfiles_repo() {
 setup_homebrew() {
     log_step "Setting up Homebrew..."
 
-    # Check if Homebrew is already installed
     if command_exists brew; then
         log_done "Homebrew is already installed. Skipping installation."
-        # Add Homebrew to PATH for Apple Silicon Macs if not already present
         if [[ $(uname -m) == "arm64" ]]; then
             if ! grep -q '/opt/homebrew/bin' ~/.zprofile 2>/dev/null; then
                 echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
@@ -781,7 +671,6 @@ setup_homebrew() {
         log_info "Installing Homebrew..."
         /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
-        # Add Homebrew to PATH for Apple Silicon Macs
         if [[ $(uname -m) == "arm64" ]]; then
             echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
             eval "$(/opt/homebrew/bin/brew shellenv)"
@@ -792,7 +681,6 @@ setup_homebrew() {
         log_done "Homebrew installed successfully"
     fi
 
-    # Use brew bundle with Brewfile from dotfiles repo
     if [ -f "$DOTFILES_DIR/Brewfile" ]; then
         log_info "Installing packages from Brewfile..."
         cd "$DOTFILES_DIR"
@@ -801,7 +689,6 @@ setup_homebrew() {
     else
         log_warning "Brewfile not found in dotfiles repo, installing essential packages manually..."
 
-        # Install essential packages
         local essential_packages=(
             "git" "wget" "curl" "pyenv" "rbenv" "fzf" "gh" "htop" "neovim" "tmux"
             "tree" "jq" "node" "yarn" "postgresql@15"
@@ -821,15 +708,12 @@ setup_homebrew() {
 setup_ssh_keys() {
     log_step "Setting up SSH keys..."
 
-    # Create .ssh directory if it doesn't exist
     mkdir -p ~/.ssh
     chmod 700 ~/.ssh
 
-    # Copy SSH keys from dotfiles repo
     if [ -f "$DOTFILES_DIR/id_ed25519" ] && [ -f "$DOTFILES_DIR/id_ed25519.pub" ]; then
         log_info "Copying SSH keys from dotfiles..."
 
-        # Backup existing keys if they exist
         if [ -f ~/.ssh/id_ed25519 ]; then
             log_warning "Backing up existing SSH private key..."
             cp ~/.ssh/id_ed25519 "$BACKUP_DIR/id_ed25519.backup"
@@ -840,15 +724,12 @@ setup_ssh_keys() {
             cp ~/.ssh/id_ed25519.pub "$BACKUP_DIR/id_ed25519.pub.backup"
         fi
 
-        # Copy new keys
         cp "$DOTFILES_DIR/id_ed25519" ~/.ssh/id_ed25519
         cp "$DOTFILES_DIR/id_ed25519.pub" ~/.ssh/id_ed25519.pub
 
-        # Set correct permissions
         chmod 600 ~/.ssh/id_ed25519
         chmod 644 ~/.ssh/id_ed25519.pub
 
-        # Create SSH config if it doesn't exist
         if [ ! -f ~/.ssh/config ]; then
             log_info "Creating SSH config..."
             cat > ~/.ssh/config << EOF
@@ -864,7 +745,6 @@ EOF
             chmod 600 ~/.ssh/config
         fi
 
-        # Add key to SSH agent
         log_info "Adding SSH key to agent..."
         eval "$(ssh-agent -s)"
         ssh-add --apple-use-keychain ~/.ssh/id_ed25519 2>/dev/null || ssh-add ~/.ssh/id_ed25519
@@ -891,7 +771,6 @@ setup_python() {
         return 1
     fi
 
-    # Add pyenv to shell profile if not already present
     local shell_profile=""
     if [ -n "$ZSH_VERSION" ]; then
         shell_profile="$HOME/.zshrc"
@@ -911,13 +790,11 @@ setup_python() {
         fi
     fi
 
-    # Initialize pyenv for current session
     export PYENV_ROOT="$HOME/.pyenv"
     export PATH="$PYENV_ROOT/bin:$PATH"
     eval "$(pyenv init --path)"
     eval "$(pyenv init -)"
 
-    # Install Python versions
     local python_versions=("3.13.5" "3.9.23")
 
     for version in "${python_versions[@]}"; do
@@ -929,7 +806,6 @@ setup_python() {
         fi
     done
 
-    # Set global Python version
     log_info "Setting Python 3.13.5 as global default..."
     pyenv global 3.13.5 || log_warning "Failed to set global Python version"
 
@@ -944,7 +820,6 @@ setup_ruby() {
         return 1
     fi
 
-    # Add rbenv to shell profile if not already present
     local shell_profile=""
     if [ -n "$ZSH_VERSION" ]; then
         shell_profile="$HOME/.zshrc"
@@ -962,11 +837,9 @@ setup_ruby() {
         fi
     fi
 
-    # Initialize rbenv for current session
     export PATH="$HOME/.rbenv/bin:$PATH"
     eval "$(rbenv init -)"
 
-    # Install Ruby version
     local ruby_version="3.2.7"
 
     if ! rbenv versions | grep -q "$ruby_version"; then
@@ -976,7 +849,6 @@ setup_ruby() {
         log_done "Ruby $ruby_version already installed"
     fi
 
-    # Set global Ruby version
     log_info "Setting Ruby $ruby_version as global default..."
     rbenv global "$ruby_version" || log_warning "Failed to set global Ruby version"
 
@@ -986,10 +858,8 @@ setup_ruby() {
 install_fonts() {
     log_step "Installing MesloLGS NF fonts..."
 
-    # Create fonts directory
     mkdir -p ~/Library/Fonts
 
-    # Font URLs from Powerlevel10k repo
     local fonts=(
         "https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Regular.ttf"
         "https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Bold.ttf"
@@ -1018,7 +888,6 @@ install_fonts() {
 setup_oh_my_zsh() {
     log_step "Setting up Oh My Zsh and Powerlevel10k..."
 
-    # Install Oh My Zsh if not present
     if [ ! -d "$HOME/.oh-my-zsh" ]; then
         log_info "Installing Oh My Zsh..."
         RUNZSH=no CHSH=no sh -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
@@ -1027,7 +896,6 @@ setup_oh_my_zsh() {
         log_done "Oh My Zsh already installed"
     fi
 
-    # Install Powerlevel10k theme
     local p10k_dir="$HOME/.oh-my-zsh/custom/themes/powerlevel10k"
     if [ ! -d "$p10k_dir" ]; then
         log_info "Installing Powerlevel10k theme..."
@@ -1037,10 +905,8 @@ setup_oh_my_zsh() {
         log_done "Powerlevel10k already installed"
     fi
 
-    # Install zsh plugins
     local plugins_dir="$HOME/.oh-my-zsh/custom/plugins"
 
-    # zsh-autosuggestions
     if [ ! -d "$plugins_dir/zsh-autosuggestions" ]; then
         log_info "Installing zsh-autosuggestions..."
         git clone https://github.com/zsh-users/zsh-autosuggestions "$plugins_dir/zsh-autosuggestions"
@@ -1049,7 +915,6 @@ setup_oh_my_zsh() {
         log_done "zsh-autosuggestions already installed"
     fi
 
-    # zsh-syntax-highlighting
     if [ ! -d "$plugins_dir/zsh-syntax-highlighting" ]; then
         log_info "Installing zsh-syntax-highlighting..."
         git clone https://github.com/zsh-users/zsh-syntax-highlighting.git "$plugins_dir/zsh-syntax-highlighting"
@@ -1077,7 +942,6 @@ symlink_dotfiles() {
         local target_file="$HOME/$dotfile"
         
         if [ -f "$source_file" ]; then
-            # Special handling for .zshrc to prevent Oh My Zsh conflicts
             if [ "$dotfile" = ".zshrc" ] && [ -f "$target_file" ] && [ ! -L "$target_file" ]; then
                 log_warning "Backing up existing $dotfile (likely Oh My Zsh default) to $BACKUP_DIR"
                 cp "$target_file" "$BACKUP_DIR/$dotfile.backup"
@@ -1086,10 +950,8 @@ symlink_dotfiles() {
                 cp "$target_file" "$BACKUP_DIR/$dotfile.backup"
             fi
             
-            # Remove existing file/symlink
             [ -e "$target_file" ] && rm "$target_file"
             
-            # Create symlink
             ln -s "$source_file" "$target_file"
             log_done "Symlinked $dotfile"
         else
@@ -1103,7 +965,6 @@ symlink_dotfiles() {
 setup_macos_customizations() {
     log_step "Applying macOS customizations..."
     
-    # Dock customizations
     log_info "Configuring Dock..."
     defaults write com.apple.dock autohide -bool true
     defaults write com.apple.dock show-recents -bool false
@@ -1113,7 +974,6 @@ setup_macos_customizations() {
     
     log_done "Dock configured"
     
-    # Screenshot folder setup
     log_info "Setting up screenshot folder..."
     mkdir -p ~/Documents/Screenshots
     defaults write com.apple.screencapture location ~/Documents/Screenshots
@@ -1126,7 +986,6 @@ setup_macos_customizations() {
 setup_terminal_profile() {
     log_step "Setting up terminal profile..."
 
-    # Check if terminal profile exists in dotfiles
     local profile_file="$DOTFILES_DIR/terminal/CustomProfile.terminal"
 
     if [ -f "$profile_file" ]; then
@@ -1134,7 +993,6 @@ setup_terminal_profile() {
         open "$profile_file"
         sleep 2
 
-        # Set the default profile using AppleScript
         log_info "Setting Terminal profile as default..."
         osascript <<EOF
 tell application "Terminal"
@@ -1155,7 +1013,6 @@ EOF
 final_steps() {
     log_step "Performing final setup steps..."
 
-    # Change default shell to zsh if not already
     if [ "$SHELL" != "$(which zsh)" ]; then
         log_info "Changing default shell to zsh..."
         chsh -s "$(which zsh)"
@@ -1164,7 +1021,6 @@ final_steps() {
         log_done "Default shell is already zsh"
     fi
 
-    # Final manual steps reminder
     log_info "=== MANUAL STEPS REQUIRED ==="
     log_warning "1. Configure your terminal to use 'MesloLGS NF' font:"
     log_warning "   - Terminal.app: Preferences > Profiles > Text > Font"
@@ -1180,5 +1036,4 @@ final_steps() {
     log_done "Final setup steps completed"
 }
 
-# Run main function
 main "$@"
