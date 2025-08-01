@@ -349,7 +349,7 @@ setup_homebrew() {
     if [ -f "$DOTFILES_DIR/Brewfile" ]; then
         log_info "Installing packages from Brewfile..."
         cd "$DOTFILES_DIR"
-        brew bundle install -v || log_warning "Some packages might have failed to install"
+        brew bundle install || log_warning "Some packages might have failed to install"
         log_done "Homebrew packages installed from Brewfile"
     else
         log_warning "Brewfile not found in dotfiles repo, installing essential packages manually..."
