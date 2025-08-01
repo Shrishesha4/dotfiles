@@ -172,10 +172,8 @@ main() {
     setup_dotfiles_repo || ((setup_errors++))
     log_step "Symlinking dotfiles..."
     symlink_dotfiles || ((setup_errors++))
-    log_step "Installing code editor(s)..."
-    install_code_editor || ((setup_errors++))
-    log_step "Installing fonts..."
-    install_fonts || ((setup_errors++))
+    log_step "Installing X Code..."
+    install_xcode_from_appstore || ((setup_errors++))
     log_step "Setting up Homebrew and packages..."
     setup_homebrew || ((setup_errors++))
     log_step "Configuring Oh My Zsh and Powerlevel10k..."
@@ -186,8 +184,6 @@ main() {
     setup_python || ((setup_errors++))
     log_step "Installing Ruby..."
     setup_ruby || ((setup_errors++))
-    log_step "Installing additional applications..."
-    install_additional_apps || ((setup_errors++))
     log_step "Configuring Terminal profile..."
     setup_terminal_profile || ((setup_errors++))
     log_step "Applying macOS customizations..."
@@ -209,6 +205,7 @@ install_xcode_cli() {
     log_step "Checking for Xcode Command Line Tools..."
     if ! xcode-select -p &>/dev/null; then
         log_info "Xcode Command Line Tools not found. Installing..."
+        softwareupdate --install-rosetta --agree-to-license
         xcode-select --install
         until xcode-select -p &>/dev/null; do
             sleep 5
@@ -216,217 +213,6 @@ install_xcode_cli() {
         log_done "Xcode Command Line Tools installed."
     else
         log_done "Xcode Command Line Tools already installed."
-    fi
-}
-
-install_code_editor() {
-    log_step "Choosing code editor..."
-    
-    local cursor_installed=false
-    local vscode_installed=false
-    
-    if [ -d "/Applications/Cursor.app" ]; then
-        cursor_installed=true
-        log_done "✓ Cursor is already installed"
-    fi
-    
-    if [ -d "/Applications/Visual Studio Code.app" ]; then
-        vscode_installed=true
-        log_done "✓ VS Code is already installed"
-    fi
-    
-    if [ "$cursor_installed" = true ] && [ "$vscode_installed" = true ]; then
-        log_info "Both editors are installed. Setting up CLI tools..."
-        setup_editor_cli_tools
-        return 0
-    fi
-    
-    if [ "$cursor_installed" = true ]; then
-        echo
-        read -p "Cursor is already installed. Do you also want to install VS Code? (y/N) " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            install_vscode
-        fi
-        setup_editor_cli_tools
-        return 0
-    fi
-    
-    if [ "$vscode_installed" = true ]; then
-        echo
-        read -p "VS Code is already installed. Do you also want to install Cursor? (y/N) " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            install_cursor
-        fi
-        setup_editor_cli_tools
-        return 0
-    fi
-    
-    echo
-    echo "Choose your preferred code editor:"
-    echo "1) Cursor (AI-powered code editor)"
-    echo "2) VS Code (Microsoft's code editor)"
-    echo "3) Both"
-    echo "4) Skip editor installation"
-    echo
-    read -p "Enter your choice (1-4): " -n 1 -r
-    echo
-    
-    case $REPLY in
-        1)
-            log_info "Installing Cursor..."
-            install_cursor
-            ;;
-        2)
-            log_info "Installing VS Code..."
-            install_vscode
-            ;;
-        3)
-            log_info "Installing both editors..."
-            install_cursor
-            install_vscode
-            ;;
-        4)
-            log_info "Skipping editor installation"
-            return 0
-            ;;
-        *)
-            log_warning "Invalid choice. Defaulting to Cursor..."
-            install_cursor
-            ;;
-    esac
-    
-    setup_editor_cli_tools
-}
-
-install_cursor() {
-    log_step "Installing Cursor editor..."
-    
-    CURSOR_API_URL="https://cursor.com/api/download?platform=darwin-universal&releaseTrack=stable"
-    log_info "Fetching latest Cursor download URL from $CURSOR_API_URL ..."
-    
-    CURSOR_JSON=$(curl -fsSL "$CURSOR_API_URL")
-    if [ $? -ne 0 ] || [ -z "$CURSOR_JSON" ]; then
-        log_error "Failed to fetch Cursor download info."
-        return 1
-    fi
-    
-    CURSOR_DMG_URL=$(echo "$CURSOR_JSON" | grep -o '"downloadUrl":"[^"]*' | head -1 | cut -d'"' -f4)
-    if [ -z "$CURSOR_DMG_URL" ]; then
-        log_error "Could not parse download URL from Cursor API response."
-        return 1
-    fi
-    
-    log_info "Downloading Cursor from $CURSOR_DMG_URL ..."
-    CURSOR_DMG="/tmp/Cursor.dmg"
-    curl -L -o "$CURSOR_DMG" "$CURSOR_DMG_URL"
-    
-    if [ $? -ne 0 ]; then
-        log_error "Failed to download Cursor editor."
-        return 1
-    fi
-    
-    MOUNT_OUTPUT=$(hdiutil attach "$CURSOR_DMG")
-    log_info "hdiutil attach output: $MOUNT_OUTPUT"
-    
-    MOUNT_DIR=$(echo "$MOUNT_OUTPUT" | grep '/Volumes/' | tail -1 | awk '{for(i=3;i<=NF;i++) printf "%s ", $i; print ""}' | sed 's/[[:space:]]*$//')
-    
-    if [ -z "$MOUNT_DIR" ]; then
-        log_error "Failed to determine mount directory."
-        return 1
-    fi
-    
-    log_info "Mount directory: $MOUNT_DIR"
-    
-    APP_PATH=$(find "$MOUNT_DIR" -name "Cursor.app" -type d -print -quit)
-    
-    if [ -z "$APP_PATH" ]; then
-        log_error "Failed to find Cursor.app in mounted DMG. Contents:"
-        ls -la "$MOUNT_DIR"
-        hdiutil detach "$MOUNT_DIR"
-        return 1
-    fi
-    
-    log_info "Found Cursor.app at: $APP_PATH"
-    log_info "Copying to /Applications/"
-    
-    cp -R "$APP_PATH" /Applications/
-    
-    if [ $? -eq 0 ]; then
-        log_done "Cursor editor installed to /Applications."
-    else
-        log_error "Failed to copy Cursor.app to /Applications."
-    fi
-    
-    hdiutil detach "$MOUNT_DIR"
-    
-    rm -f "$CURSOR_DMG"
-}
-
-install_vscode() {
-    log_step "Installing VS Code..."
-    
-    VSCODE_ZIP="/tmp/VSCode.zip"
-    VSCODE_URL="https://code.visualstudio.com/sha/download?build=stable&os=darwin-universal"
-    
-    log_info "Downloading VS Code from $VSCODE_URL ..."
-    curl -L -o "$VSCODE_ZIP" "$VSCODE_URL"
-    
-    if [ $? -ne 0 ]; then
-        log_error "Failed to download VS Code."
-        return 1
-    fi
-    
-    log_info "Extracting VS Code..."
-    unzip -q "$VSCODE_ZIP" -d /tmp/
-    
-    if [ -d "/tmp/Visual Studio Code.app" ]; then
-        log_info "Copying VS Code to /Applications/"
-        cp -R "/tmp/Visual Studio Code.app" /Applications/
-        
-        if [ $? -eq 0 ]; then
-            log_done "VS Code installed to /Applications."
-        else
-            log_error "Failed to copy VS Code to /Applications."
-        fi
-        
-        rm -rf "/tmp/Visual Studio Code.app"
-    else
-        log_error "Failed to extract VS Code properly."
-    fi
-    
-    rm -f "$VSCODE_ZIP"
-}
-
-setup_editor_cli_tools() {
-    log_step "Setting up CLI tools..."
-    
-    if [ -d "/Applications/Cursor.app" ]; then
-        if [ -e "/Applications/Cursor.app/Contents/Resources/bin/cursor" ] && [ ! -L "/usr/local/bin/cursor" ]; then
-            log_info "Linking Cursor CLI to /usr/local/bin/cursor..."
-            sudo ln -sf "/Applications/Cursor.app/Contents/Resources/bin/cursor" /usr/local/bin/cursor
-            log_done "'cursor' CLI linked to /usr/local/bin/cursor."
-        fi
-    fi
-    
-    if [ -d "/Applications/Visual Studio Code.app" ]; then
-        log_info "Setting up VS Code CLI..."        
-
-        if command -v code >/dev/null 2>&1; then
-            log_done "VS Code CLI already installed and working"
-        else
-            if [ -L "/usr/local/bin/code" ]; then
-                log_info "Removing existing broken VS Code CLI symlink..."
-                sudo rm -f "/usr/local/bin/code" 2>/dev/null || true
-            fi
-            
-            log_warning "VS Code CLI requires manual setup:"
-            log_info "1. Open VS Code"
-            log_info "2. Press Cmd+Shift+P to open Command Palette"
-            log_info "3. Type 'Shell Command: Install code command in PATH'"
-            log_info "4. Select that option and enter your password when prompted"
-        fi
     fi
 }
 
@@ -460,38 +246,6 @@ install_additional_apps() {
             log_warning "Invalid choice. Skipping additional applications..."
             ;;
     esac
-}
-
-select_individual_apps() {
-    echo
-    read -p "Install Xcode from App Store? (y/N) " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        install_xcode_from_appstore
-    fi
-    
-    echo
-    read -p "Install Brave Browser? (y/N) " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        install_brave_browser
-    fi
-    
-    echo
-    read -p "Install Notion? (y/N) " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        install_notion
-    fi
-
-
-    
-    echo
-    read -p "Install Android Studio? (y/N) " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        install_android_studio
-    fi
 }
 
 install_xcode_from_appstore() {
@@ -529,155 +283,6 @@ install_xcode_from_appstore() {
     else
         log_error "Failed to install Xcode from App Store"
     fi
-}
-
-install_notion() {
-    log_step "Installing Notion..."
-    
-    if [ -d "/Applications/Notion.app" ]; then
-        log_done "Notion is already installed"
-        return 0
-    fi
-    
-    local notion_dmg="/tmp/notion.dmg"
-    local notion_url="https://www.notion.so/desktop/mac-apple-silicon/download"
-    
-    log_info "Downloading Notion from $notion_url ..."
-    curl -L -o "$notion_dmg" "$notion_url"
-    
-    if [ $? -ne 0 ]; then
-        log_error "Failed to download Notion"
-        return 1
-    fi
-    
-    log_info "Mounting Notion DMG..."
-    local mount_output=$(hdiutil attach "$notion_dmg")
-    local mount_dir=$(echo "$mount_output" | grep '/Volumes/' | tail -1 | awk '{for(i=3;i<=NF;i++) printf "%s ", $i; print ""}' | sed 's/[[:space:]]*$//')
-    
-    if [ -z "$mount_dir" ]; then
-        log_error "Failed to mount Notion DMG"
-        return 1
-    fi
-    
-    local app_path=$(find "$mount_dir" -name "Notion.app" -type d -print -quit)
-    
-    if [ -z "$app_path" ]; then
-        log_error "Failed to find Notion.app in mounted DMG"
-        hdiutil detach "$mount_dir"
-        return 1
-    fi
-    
-    log_info "Installing Notion to /Applications/"
-    cp -R "$app_path" /Applications/
-    
-    if [ $? -eq 0 ]; then
-        log_done "Notion installed successfully"
-    else
-        log_error "Failed to install Notion"
-    fi
-    
-    hdiutil detach "$mount_dir"
-    rm -f "$notion_dmg"
-}
-
-install_brave_browser() {
-    log_step "Installing Brave Browser..."
-    
-    if [ -d "/Applications/Brave Browser.app" ]; then
-        log_done "Brave Browser is already installed"
-        return 0
-    fi
-    
-    local brave_dmg="/tmp/Brave-Browser.dmg"
-    local brave_url="https://referrals.brave.com/latest/Brave-Browser.dmg"
-    
-    log_info "Downloading Brave Browser from $brave_url ..."
-    curl -L -o "$brave_dmg" "$brave_url"
-    
-    if [ $? -ne 0 ]; then
-        log_error "Failed to download Brave Browser"
-        return 1
-    fi
-    
-    log_info "Mounting Brave Browser DMG..."
-    local mount_output=$(hdiutil attach "$brave_dmg")
-    local mount_dir=$(echo "$mount_output" | grep '/Volumes/' | tail -1 | awk '{for(i=3;i<=NF;i++) printf "%s ", $i; print ""}' | sed 's/[[:space:]]*$//')
-    
-    if [ -z "$mount_dir" ]; then
-        log_error "Failed to mount Brave Browser DMG"
-        return 1
-    fi
-    
-    local app_path=$(find "$mount_dir" -name "Brave Browser.app" -type d -print -quit)
-    
-    if [ -z "$app_path" ]; then
-        log_error "Failed to find Brave Browser.app in mounted DMG"
-        hdiutil detach "$mount_dir"
-        return 1
-    fi
-    
-    log_info "Installing Brave Browser to /Applications/"
-    cp -R "$app_path" /Applications/
-    
-    if [ $? -eq 0 ]; then
-        log_done "Brave Browser installed successfully"
-    else
-        log_error "Failed to install Brave Browser"
-    fi
-    
-    hdiutil detach "$mount_dir"
-    rm -f "$brave_dmg"
-}
-
-install_android_studio() {
-    log_step "Installing Android Studio..."
-    
-    if [ -d "/Applications/Android Studio.app" ]; then
-        log_done "Android Studio is already installed"
-        return 0
-    fi
-    
-    local android_dmg="/tmp/android-studio.dmg"
-    local android_url="https://redirector.gvt1.com/edgedl/android/studio/install/2025.1.1.14/android-studio-2025.1.1.14-mac_arm.dmg"
-    
-    log_info "Downloading Android Studio from $android_url ..."
-    log_warning "Android Studio is a large download (~1GB) and may take time"
-    curl -L -o "$android_dmg" "$android_url"
-    
-    if [ $? -ne 0 ]; then
-        log_error "Failed to download Android Studio"
-        return 1
-    fi
-    
-    log_info "Mounting Android Studio DMG..."
-    local mount_output=$(hdiutil attach "$android_dmg")
-    local mount_dir=$(echo "$mount_output" | grep '/Volumes/' | tail -1 | awk '{for(i=3;i<=NF;i++) printf "%s ", $i; print ""}' | sed 's/[[:space:]]*$//')
-    
-    if [ -z "$mount_dir" ]; then
-        log_error "Failed to mount Android Studio DMG"
-        return 1
-    fi
-    
-    local app_path=$(find "$mount_dir" -name "Android Studio.app" -type d -print -quit)
-    
-    if [ -z "$app_path" ]; then
-        log_error "Failed to find Android Studio.app in mounted DMG"
-        hdiutil detach "$mount_dir"
-        return 1
-    fi
-    
-    log_info "Installing Android Studio to /Applications/ (this may take a moment)..."
-    cp -R "$app_path" /Applications/
-    
-    if [ $? -eq 0 ]; then
-        log_done "Android Studio installed successfully"
-        log_info "Note: You'll need to complete Android Studio setup on first launch"
-    else
-        log_error "Failed to install Android Studio"
-    fi
-    
-    hdiutil detach "$mount_dir"
-    rm -f "$android_dmg"
 }
 
 setup_dotfiles_repo() {
@@ -741,10 +346,116 @@ setup_homebrew() {
     fi
 
     if [ -f "$DOTFILES_DIR/Brewfile" ]; then
-        log_info "Installing packages from Brewfile..."
-        cd "$DOTFILES_DIR"
-        brew bundle install || log_warning "Some packages might have failed to install"
-        log_done "Homebrew packages installed from Brewfile"
+        log_info "Brewfile found. Select packages to install..."
+
+        # Check for fzf and install if needed
+        if ! command -v fzf >/dev/null 2>&1; then
+            log_info "fzf not found, installing with brew..."
+            brew install fzf
+        fi
+
+        # Detect shell for compatibility
+        CURRENT_SHELL=$(basename "$SHELL")
+        
+        # Extract formulas - shell-agnostic method
+        FORMULAS=()
+        while IFS= read -r line; do
+            FORMULAS+=("$line")
+        done < <(grep '^brew "' "$DOTFILES_DIR/Brewfile" | sed -E 's/^brew \"([^\"]*)\".*/\1/')
+
+        # Extract casks - shell-agnostic method
+        CASKS=()
+        while IFS= read -r line; do
+            CASKS+=("$line")
+        done < <(grep '^cask "' "$DOTFILES_DIR/Brewfile" | sed -E 's/^cask \"([^\"]*)\".*/\1/')
+
+        # Helper function for item selection (fixed formatting issue)
+        select_items_universal() {
+            local category=$1
+            shift
+            local items=("$@")
+            
+            if [ ${#items[@]} -eq 0 ]; then
+                echo ""
+                return
+            fi
+            
+            # Fixed: Print "install all" once at the top, then each item on separate lines
+            {
+                echo "install all"
+                printf "%s\n" "${items[@]}"
+            } | fzf --multi \
+                --header="Select $category to install (tab/space to select, enter to confirm)" \
+                --prompt="$category: " \
+                --bind "tab:toggle" \
+                --bind "space:toggle"
+        }
+
+        # Helper function to check if "install all" was selected
+        should_install_all() {
+            echo "$1" | grep -q "^install all$"
+        }
+
+        # Select formulas
+        if [ ${#FORMULAS[@]} -gt 0 ]; then
+            log_info "Found ${#FORMULAS[@]} formulas: ${FORMULAS[*]}"
+            CHOICE_FORMULAS=$(select_items_universal "Formulas" "${FORMULAS[@]}")
+        else
+            CHOICE_FORMULAS=""
+        fi
+
+        # Select casks
+        if [ ${#CASKS[@]} -gt 0 ]; then
+            log_info "Found ${#CASKS[@]} casks: ${CASKS[*]}"
+            CHOICE_CASKS=$(select_items_universal "Casks" "${CASKS[@]}")
+        else
+            CHOICE_CASKS=""
+        fi
+
+        # Install selected formulas
+        if [ -n "$CHOICE_FORMULAS" ]; then
+            if should_install_all "$CHOICE_FORMULAS"; then
+                log_info "Installing all formulas..."
+                for formula in "${FORMULAS[@]}"; do
+                    log_info "Installing formula: $formula"
+                    brew install "$formula" || log_warning "Failed to install $formula"
+                done
+            else
+                log_info "Installing selected formulas..."
+                echo "$CHOICE_FORMULAS" | while IFS= read -r formula; do
+                    if [ -n "$formula" ] && [ "$formula" != "install all" ]; then
+                        log_info "Installing formula: $formula"
+                        brew install "$formula" || log_warning "Failed to install $formula"
+                    fi
+                done
+            fi
+            log_done "Formula installation complete."
+        else
+            log_info "No formulas selected. Skipping formula installation."
+        fi
+
+        # Install selected casks
+        if [ -n "$CHOICE_CASKS" ]; then
+            if should_install_all "$CHOICE_CASKS"; then
+                log_info "Installing all casks..."
+                for cask in "${CASKS[@]}"; do
+                    log_info "Installing cask: $cask"
+                    brew install --cask "$cask" || log_warning "Failed to install $cask"
+                done
+            else
+                log_info "Installing selected casks..."
+                echo "$CHOICE_CASKS" | while IFS= read -r cask; do
+                    if [ -n "$cask" ] && [ "$cask" != "install all" ]; then
+                        log_info "Installing cask: $cask"
+                        brew install --cask "$cask" || log_warning "Failed to install $cask"
+                    fi
+                done
+            fi
+            log_done "Cask installation complete."
+        else
+            log_info "No casks selected. Skipping cask installation."
+        fi
+
     else
         log_warning "Brewfile not found in dotfiles repo, installing essential packages manually..."
 
@@ -914,36 +625,6 @@ setup_ruby() {
     log_done "Ruby setup completed"
 }
 
-install_fonts() {
-    log_step "Installing MesloLGS NF fonts..."
-
-    mkdir -p ~/Library/Fonts
-
-    local fonts=(
-        "https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Regular.ttf"
-        "https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Bold.ttf"
-        "https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Italic.ttf"
-        "https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Bold%20Italic.ttf"
-    )
-
-    for font_url in "${fonts[@]}"; do
-        local font_name=$(basename "$font_url" | sed 's/%20/ /g')
-        local font_path="$HOME/Library/Fonts/$font_name"
-
-        if [ ! -f "$font_path" ]; then
-            log_info "Downloading $font_name..."
-            curl -fLo "$font_path" "$font_url" || log_warning "Failed to download $font_name"
-            if [ -f "$font_path" ]; then
-                log_done "$font_name installed"
-            fi
-        else
-            log_done "$font_name already exists, skipping..."
-        fi
-    done
-
-    log_done "MesloLGS NF fonts installation completed"
-}
-
 setup_oh_my_zsh() {
     log_step "Setting up Oh My Zsh and Powerlevel10k..."
 
@@ -1025,10 +706,12 @@ setup_macos_customizations() {
     log_step "Applying macOS customizations..."
     
     log_info "Configuring Dock..."
-    defaults write com.apple.dock autohide -bool true
     defaults write com.apple.dock show-recents -bool false
     defaults write com.apple.dock autohide-delay -int 0
     defaults write com.apple.dock autohide-time-modifier -float 0.4
+    defaults write com.apple.dock tilesize -int 64
+    defaults write com.apple.dock magnification -bool true
+    defaults write com.apple.dock magnification -int 52
     killall Dock
     
     log_done "Dock configured"
