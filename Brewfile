@@ -8,7 +8,6 @@ brew "node"
 brew "postgresql@15", restart_service: :changed
 brew "pyenv"
 brew "rbenv"
-brew "scrcpy"
 brew "yarn"
 
 cask "localsend"
