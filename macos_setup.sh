@@ -447,6 +447,7 @@ install_additional_apps() {
             install_xcode_from_appstore
             install_brave_browser
             install_android_studio
+            install_notion
             ;;
         2)
             select_individual_apps
@@ -475,6 +476,15 @@ select_individual_apps() {
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         install_brave_browser
     fi
+    
+    echo
+    read -p "Install Notion? (y/N) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        install_notion
+    fi
+
+
     
     echo
     read -p "Install Android Studio? (y/N) " -n 1 -r
@@ -519,6 +529,55 @@ install_xcode_from_appstore() {
     else
         log_error "Failed to install Xcode from App Store"
     fi
+}
+
+install_notion() {
+    log_step "Installing Notion..."
+    
+    if [ -d "/Applications/Notion.app" ]; then
+        log_done "Notion is already installed"
+        return 0
+    fi
+    
+    local notion_dmg="/tmp/notion.dmg"
+    local notion_url="https://www.notion.so/desktop/mac-apple-silicon/download"
+    
+    log_info "Downloading Notion from $notion_url ..."
+    curl -L -o "$notion_dmg" "$notion_url"
+    
+    if [ $? -ne 0 ]; then
+        log_error "Failed to download Notion"
+        return 1
+    fi
+    
+    log_info "Mounting Notion DMG..."
+    local mount_output=$(hdiutil attach "$notion_dmg")
+    local mount_dir=$(echo "$mount_output" | grep '/Volumes/' | tail -1 | awk '{for(i=3;i<=NF;i++) printf "%s ", $i; print ""}' | sed 's/[[:space:]]*$//')
+    
+    if [ -z "$mount_dir" ]; then
+        log_error "Failed to mount Notion DMG"
+        return 1
+    fi
+    
+    local app_path=$(find "$mount_dir" -name "Notion.app" -type d -print -quit)
+    
+    if [ -z "$app_path" ]; then
+        log_error "Failed to find Notion.app in mounted DMG"
+        hdiutil detach "$mount_dir"
+        return 1
+    fi
+    
+    log_info "Installing Notion to /Applications/"
+    cp -R "$app_path" /Applications/
+    
+    if [ $? -eq 0 ]; then
+        log_done "Notion installed successfully"
+    else
+        log_error "Failed to install Notion"
+    fi
+    
+    hdiutil detach "$mount_dir"
+    rm -f "$notion_dmg"
 }
 
 install_brave_browser() {
@@ -975,8 +1034,8 @@ setup_macos_customizations() {
     log_done "Dock configured"
     
     log_info "Setting up screenshot folder..."
-    mkdir -p ~/Documents/Screenshots
-    defaults write com.apple.screencapture location ~/Documents/Screenshots
+    mkdir -p ~/Pictures/Screenshots
+    defaults write com.apple.screencapture location ~/Pictures/Screenshots
     killall SystemUIServer
     log_done "Screenshot folder configured"
     
