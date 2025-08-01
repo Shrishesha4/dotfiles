@@ -345,120 +345,16 @@ setup_homebrew() {
         log_done "Homebrew installed successfully"
     fi
 
+    # Use brew bundle with Brewfile from dotfiles repo
     if [ -f "$DOTFILES_DIR/Brewfile" ]; then
-        log_info "Brewfile found. Select packages to install..."
-
-        # Check for fzf and install if needed
-        if ! command -v fzf >/dev/null 2>&1; then
-            log_info "fzf not found, installing with brew..."
-            brew install fzf
-        fi
-
-        # Detect shell for compatibility
-        CURRENT_SHELL=$(basename "$SHELL")
-        
-        # Extract formulas - shell-agnostic method
-        FORMULAS=()
-        while IFS= read -r line; do
-            FORMULAS+=("$line")
-        done < <(grep '^brew "' "$DOTFILES_DIR/Brewfile" | sed -E 's/^brew \"([^\"]*)\".*/\1/')
-
-        # Extract casks - shell-agnostic method
-        CASKS=()
-        while IFS= read -r line; do
-            CASKS+=("$line")
-        done < <(grep '^cask "' "$DOTFILES_DIR/Brewfile" | sed -E 's/^cask \"([^\"]*)\".*/\1/')
-
-        # Helper function for item selection (fixed formatting issue)
-        select_items_universal() {
-            local category=$1
-            shift
-            local items=("$@")
-            
-            if [ ${#items[@]} -eq 0 ]; then
-                echo ""
-                return
-            fi
-            
-            # Fixed: Print "install all" once at the top, then each item on separate lines
-            {
-                echo "install all"
-                printf "%s\n" "${items[@]}"
-            } | fzf --multi \
-                --header="Select $category to install (tab/space to select, enter to confirm)" \
-                --prompt="$category: " \
-                --bind "tab:toggle" \
-                --bind "space:toggle"
-        }
-
-        # Helper function to check if "install all" was selected
-        should_install_all() {
-            echo "$1" | grep -q "^install all$"
-        }
-
-        # Select formulas
-        if [ ${#FORMULAS[@]} -gt 0 ]; then
-            log_info "Found ${#FORMULAS[@]} formulas: ${FORMULAS[*]}"
-            CHOICE_FORMULAS=$(select_items_universal "Formulas" "${FORMULAS[@]}")
-        else
-            CHOICE_FORMULAS=""
-        fi
-
-        # Select casks
-        if [ ${#CASKS[@]} -gt 0 ]; then
-            log_info "Found ${#CASKS[@]} casks: ${CASKS[*]}"
-            CHOICE_CASKS=$(select_items_universal "Casks" "${CASKS[@]}")
-        else
-            CHOICE_CASKS=""
-        fi
-
-        # Install selected formulas
-        if [ -n "$CHOICE_FORMULAS" ]; then
-            if should_install_all "$CHOICE_FORMULAS"; then
-                log_info "Installing all formulas..."
-                for formula in "${FORMULAS[@]}"; do
-                    log_info "Installing formula: $formula"
-                    brew install "$formula" || log_warning "Failed to install $formula"
-                done
-            else
-                log_info "Installing selected formulas..."
-                echo "$CHOICE_FORMULAS" | while IFS= read -r formula; do
-                    if [ -n "$formula" ] && [ "$formula" != "install all" ]; then
-                        log_info "Installing formula: $formula"
-                        brew install "$formula" || log_warning "Failed to install $formula"
-                    fi
-                done
-            fi
-            log_done "Formula installation complete."
-        else
-            log_info "No formulas selected. Skipping formula installation."
-        fi
-
-        # Install selected casks
-        if [ -n "$CHOICE_CASKS" ]; then
-            if should_install_all "$CHOICE_CASKS"; then
-                log_info "Installing all casks..."
-                for cask in "${CASKS[@]}"; do
-                    log_info "Installing cask: $cask"
-                    brew install --cask "$cask" || log_warning "Failed to install $cask"
-                done
-            else
-                log_info "Installing selected casks..."
-                echo "$CHOICE_CASKS" | while IFS= read -r cask; do
-                    if [ -n "$cask" ] && [ "$cask" != "install all" ]; then
-                        log_info "Installing cask: $cask"
-                        brew install --cask "$cask" || log_warning "Failed to install $cask"
-                    fi
-                done
-            fi
-            log_done "Cask installation complete."
-        else
-            log_info "No casks selected. Skipping cask installation."
-        fi
-
+        log_info "Installing packages from Brewfile..."
+        cd "$DOTFILES_DIR"
+        brew bundle install || log_warning "Some packages might have failed to install"
+        log_done "Homebrew packages installed from Brewfile"
     else
         log_warning "Brewfile not found in dotfiles repo, installing essential packages manually..."
 
+        # Install essential packages
         local essential_packages=(
             "git" "wget" "curl" "pyenv" "rbenv" "fzf" "gh" "htop" "neovim" "tmux"
             "tree" "jq" "node" "yarn" "postgresql@15"
