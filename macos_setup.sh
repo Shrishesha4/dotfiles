@@ -1188,7 +1188,7 @@ setup_macos_customizations() {
 
 setup_terminal_profile() {
     log_step "Setting up terminal profile..."
-
+    touch ~/.hushlogin
     local profile_file="$DOTFILES_DIR/terminal/CustomProfile.terminal"
 
     if [ -f "$profile_file" ]; then
@@ -1266,13 +1266,6 @@ main() {
     log_step "Setting up Homebrew and packages..."
     setup_homebrew || ((setup_errors++))
     log_step "Configuring Oh My Zsh and Powerlevel10k..."
-    
-    log_step "Switching to dotfiles repository..."
-    cd "$DOTFILES_DIR"
-    git checkout main
-    log_step "Changing to home directory..."
-    cd "$HOME"
-
     setup_oh_my_zsh || ((setup_errors++))
     log_step "Setting up SSH keys..."
     setup_ssh_keys || ((setup_errors++))

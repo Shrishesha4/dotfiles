@@ -146,3 +146,8 @@ export PATH="/opt/homebrew/opt/curl/bin:$PATH"
 export LDFLAGS="-L/opt/homebrew/opt/curl/lib"
 export CPPFLAGS="-I/opt/homebrew/opt/curl/include"
 export PKG_CONFIG_PATH="/opt/homebrew/opt/curl/lib/pkgconfig"
+# The following lines have been added by Docker Desktop to enable Docker CLI completions.
+fpath=(/Users/shrishesha/.docker/completions $fpath)
+autoload -Uz compinit
+compinit
+# End of Docker CLI completions
