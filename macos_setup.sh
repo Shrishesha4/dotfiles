@@ -205,7 +205,6 @@ main() {
     log_info "Please restart your terminal or run 'source ~/.zshrc' to apply changes."
 }
 
-
 install_xcode_cli() {
     log_step "Checking for Xcode Command Line Tools..."
     if ! xcode-select -p &>/dev/null; then
@@ -220,7 +219,6 @@ install_xcode_cli() {
         log_done "Xcode Command Line Tools already installed."
     fi
 }
-
 
 setup_dotfiles_repo() {
     log_step "Setting up dotfiles repository..."
@@ -282,7 +280,6 @@ setup_homebrew() {
         log_done "Homebrew installed successfully"
     fi
 
-    # Use brew bundle with Brewfile from dotfiles repo
     if [ -f "$DOTFILES_DIR/Brewfile" ]; then
         log_info "Installing packages from Brewfile..."
         cd "$DOTFILES_DIR"
@@ -291,10 +288,10 @@ setup_homebrew() {
     else
         log_warning "Brewfile not found in dotfiles repo, installing essential packages manually..."
 
-        # Install essential packages
+        log_step "Installing essential Homebrew packages..."
         local essential_packages=(
-            "git" "wget" "curl" "pyenv" "rbenv" "fzf" "gh" "htop" "neovim" "tmux"
-            "tree" "jq" "node" "yarn" "postgresql@15"
+            "git" "wget" "curl" "pyenv" "rbenv" "fzf" "gh" "docker"
+            "node" "yarn" "postgresql@15" "fastfetch" "mas" "java" 
         )
 
         for package in "${essential_packages[@]}"; do
@@ -305,14 +302,31 @@ setup_homebrew() {
                 log_done "$package already installed"
             fi
         done
+
+        log_step "Installing essential Homebrew casks..."
+        local essential_casks=(
+            "visual-studio-code" "brave-browser" "notion" "vlc" "docker-desktop"
+            "rectangle" "font-meslo-for-powerlevel10k" "coconutbattery" "proton-pass" 
+            "middleclick" "localxpose" "raycast" "whatsapp"
+            "locasend" "github" "qbittorrent" "postman" "mac-mouse-fix"
+
+        )
+        for cask in "${essential_casks[@]}"; do
+            if ! brew list --cask "$cask" >/dev/null 2>&1; then
+                log_info "Installing $cask..."
+                brew install --cask "$cask" || log_warning "Failed to install $cask"
+            else
+                log_done "$cask already installed"
+            fi
+        done
     fi
 
     log_step "Accepting Xcode license..."
-    if ! sudo xcodebuild -checkFirstLaunchStatus &>/dev/null; then
+    if sudo xcodebuild -license check &>/dev/null; then
+        log_done "Xcode license already accepted"
+    else
         log_info "Xcode license not accepted. Accepting now..."
         sudo xcodebuild -license accept || log_warning "Failed to accept Xcode license"
-    else
-        log_done "Xcode license already accepted"
     fi
 
     log_info "Running brew cleanup..."
@@ -650,7 +664,7 @@ final_steps() {
         sudo shutdown -r now
     else
         log_warning "Please restart your Mac manually when convenient."
-        log_step "Run 'sudo shutdown -r now' to restart via terminal"
+        log_warning "Run 'sudo shutdown -r now' to restart via terminal"
     fi
 }
 
