@@ -2,8 +2,10 @@
 
 set -e
 
+# Store password securely for the session
 SUDO_PASSWORD=""
 
+# Function to get password once and validate it
 initialize_sudo() {
     echo "This script requires administrator privileges."
     echo "Please enter your password. You will NOT be asked again during this session."
@@ -11,6 +13,7 @@ initialize_sudo() {
     read -s SUDO_PASSWORD
     echo
 
+    # Test that the password works
     if ! echo "$SUDO_PASSWORD" | sudo -S -v 2>/dev/null; then
         echo "❌ Invalid password"
         exit 1
@@ -19,11 +22,13 @@ initialize_sudo() {
     echo "✅ Password verified. Running setup..."
 }
 
+# Function to run sudo commands with stored password
 run_sudo() {
     echo "$SUDO_PASSWORD" | sudo -S "$@" 2>/dev/null
     return $?
 }
 
+# Clear password from memory when done
 cleanup_password() {
     SUDO_PASSWORD=""
     unset SUDO_PASSWORD
@@ -31,6 +36,7 @@ cleanup_password() {
 
 trap cleanup_password EXIT
 
+# Initialize sudo at the start
 initialize_sudo
 
 RED='\033[0;31m'
@@ -188,7 +194,48 @@ cleanup() {
 
 trap cleanup EXIT
 
-# MODIFIED FUNCTIONS - Replace sudo with run_sudo
+install_xcode_cli() {
+    log_step "Checking for Xcode Command Line Tools..."
+    if ! xcode-select -p &>/dev/null; then
+        log_info "Xcode Command Line Tools not found. Installing..."
+        softwareupdate --install-rosetta --agree-to-license
+        xcode-select --install
+        until xcode-select -p &>/dev/null; do
+            sleep 5
+        done
+        log_done "Xcode Command Line Tools installed."
+    else
+        log_done "Xcode Command Line Tools already installed."
+    fi
+}
+
+setup_dotfiles_repo() {
+    log_step "Setting up dotfiles repository..."
+
+    if [ -d "$DOTFILES_DIR" ]; then
+        log_warning "Dotfiles directory already exists at $DOTFILES_DIR"
+        if [ -d "$DOTFILES_DIR/.git" ]; then
+            log_info "Updating existing dotfiles repository..."
+            cd "$DOTFILES_DIR"
+            git pull origin main || git pull origin master || log_warning "Could not update dotfiles repo"
+        else
+            log_warning "Directory exists but not a git repository. Moving to backup..."
+            mv "$DOTFILES_DIR" "$BACKUP_DIR/dotfiles_existing"
+            log_info "Cloning dotfiles repository..."
+            git clone "$DOTFILES_REPO" "$DOTFILES_DIR"
+        fi
+    else
+        log_info "Cloning dotfiles repository..."
+        git clone "$DOTFILES_REPO" "$DOTFILES_DIR"
+    fi
+
+    if [ -d "$DOTFILES_DIR" ]; then
+        log_done "Dotfiles repository setup completed"
+    else
+        log_error "Failed to setup dotfiles repository"
+        exit 1
+    fi
+}
 
 setup_homebrew() {
     log_step "Setting up Homebrew..."
@@ -284,118 +331,210 @@ setup_homebrew() {
     fi  
 }
 
-setup_macos_customizations() {
-    log_step "Applying macOS customizations..."
+# Helper function for existing SSH keys
+setup_existing_ssh_keys() {
+    log_info "Configuring existing SSH keys..."
     
-    log_info "Configuring Dock..."
-    defaults write com.apple.dock show-recents -bool false
-    defaults write com.apple.dock autohide-delay -int 0
-    defaults write com.apple.dock autohide-time-modifier -float 0.4
-    defaults write com.apple.dock tilesize -int 64
-    defaults write com.apple.dock magnification -bool true
-    defaults write com.apple.dock magnification -int 52
-    defaults write com.apple.dock showAppExposeGestureEnabled -bool true
-    defaults -currentHost write NSGlobalDomain com.apple.trackpad.threeFingerVertSwipeGesture -int 2
+    # Set proper permissions
+    chmod 600 ~/.ssh/id_ed25519
+    chmod 644 ~/.ssh/id_ed25519.pub
 
-    killall Dock
-    log_done "Dock configured"
+    # Create SSH config if it doesn't exist
+    if [ ! -f ~/.ssh/config ]; then
+        log_info "Creating SSH config..."
+        cat > ~/.ssh/config << EOF
+Host github.com
+    AddKeysToAgent yes
+    UseKeychain yes
+    IdentityFile ~/.ssh/id_ed25519
 
-    log_info "Applying System Settings..."
-    defaults write com.apple.AppleMultitouchTrackpad Clicking -bool true
-    defaults write com.apple.driver.AppleBluetoothMultitouch.trackpad Clicking -bool true
-    
-    run_sudo defaults -currentHost write NSGlobalDomain com.apple.mouse.tapBehavior -int 1
-    run_sudo defaults write NSGlobalDomain com.apple.mouse.tapBehavior -int 1    
-    
-    log_done "System Settings applied"
-    
-    log_info "Setting up screenshot folder..."
-    mkdir -p ~/Pictures/Screenshots
-    defaults write com.apple.screencapture location ~/Pictures/Screenshots
-    killall SystemUIServer
-    log_done "Screenshot folder configured"
-    
-    log_done "macOS customizations applied"
-}
-
-final_steps() {
-    log_step "Performing final setup steps..."
-
-    if [ "$SHELL" != "$(which zsh)" ]; then
-        log_info "Changing default shell to zsh..."
-        chsh -s "$(which zsh)"
-        log_done "Default shell changed to zsh"
-    else
-        log_done "Default shell is already zsh"
+Host *
+    AddKeysToAgent yes
+    UseKeychain yes
+EOF
+        chmod 600 ~/.ssh/config
     fi
 
-    log_info "=== MANUAL STEPS REQUIRED ==="
-    log_warning "1. Configure your terminal to use 'MesloLGS NF' font:"
-    log_warning "   - Terminal.app: Preferences > Profiles > Text > Font"
-    log_warning "   - iTerm2: Preferences > Profiles > Text > Font"
-    log_warning "   - Choose 'MesloLGS NF' and set size to 12pt or preferred"
-    log_warning "2. If this is a new machine, add your SSH public key to GitHub:"
-    log_warning "   - Copy: pbcopy < ~/.ssh/id_ed25519.pub"
-    log_warning "   - Add to: https://github.com/settings/keys"
-    log_warning "3. Test SSH connection: ssh -T git@github.com"
-    log_warning "4. Run 'p10k configure' to customize your Powerlevel10k theme"
-    log_info "================================"
+    # Add to SSH agent
+    log_info "Adding SSH key to agent..."
+    eval "$(ssh-agent -s)"
+    ssh-add --apple-use-keychain ~/.ssh/id_ed25519 2>/dev/null || ssh-add ~/.ssh/id_ed25519
 
-    log_done "Final setup steps completed"
-    
-    log_step "A restart is recommended to ensure all changes take effect properly."
-    read -p "Would you like to restart now? (y/n): " -n 1 -r
+    # Display public key and setup instructions
     echo
-
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        run_sudo shutdown -r now
+    log_info "🔑 Your existing SSH public key:"
+    echo "----------------------------------------"
+    cat ~/.ssh/id_ed25519.pub
+    echo "----------------------------------------"
+    
+    # Check if key is already on GitHub
+    log_info "🧪 Testing if this SSH key is already configured with GitHub..."
+    if ssh -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
+        local github_user=$(ssh -T git@github.com 2>&1 | grep -o "Hi [^!]*" | cut -d' ' -f2)
+        log_success "✅ SSH key is already configured for GitHub user: $github_user"
     else
-        log_warning "Please restart your Mac manually when convenient."
-        log_warning "Run 'sudo shutdown -r now' to restart via terminal"
+        log_warning "⚠️  SSH key not yet configured with GitHub or needs setup"
+        provide_github_instructions
     fi
+    
+    log_done "Existing SSH keys configured successfully"
 }
 
 
-install_xcode_cli() {
-    log_step "Checking for Xcode Command Line Tools..."
-    if ! xcode-select -p &>/dev/null; then
-        log_info "Xcode Command Line Tools not found. Installing..."
-        softwareupdate --install-rosetta --agree-to-license
-        xcode-select --install
-        until xcode-select -p &>/dev/null; do
-            sleep 5
-        done
-        log_done "Xcode Command Line Tools installed."
-    else
-        log_done "Xcode Command Line Tools already installed."
-    fi
-}
-
-setup_dotfiles_repo() {
-    log_step "Setting up dotfiles repository..."
-
-    if [ -d "$DOTFILES_DIR" ]; then
-        log_warning "Dotfiles directory already exists at $DOTFILES_DIR"
-        if [ -d "$DOTFILES_DIR/.git" ]; then
-            log_info "Updating existing dotfiles repository..."
-            cd "$DOTFILES_DIR"
-            git pull origin main || git pull origin master || log_warning "Could not update dotfiles repo"
+# Helper function for creating new SSH keys
+create_new_ssh_keys() {
+    echo
+    log_info "📧 Please enter your email address for the SSH key:"
+    log_info "   (This should be the email associated with your GitHub account)"
+    
+    # Loop until we get a valid email
+    while true; do
+        read -p "Email: " user_email
+        
+        if [ -z "$user_email" ]; then
+            log_error "❌ Email is required for SSH key generation"
+            echo "Please enter a valid email address."
+            continue
+        fi
+        
+        # Basic email validation
+        if [[ "$user_email" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
+            log_success "✅ Email accepted: $user_email"
+            break
         else
-            log_warning "Directory exists but not a git repository. Moving to backup..."
-            mv "$DOTFILES_DIR" "$BACKUP_DIR/dotfiles_existing"
-            log_info "Cloning dotfiles repository..."
-            git clone "$DOTFILES_REPO" "$DOTFILES_DIR"
+            log_error "❌ Invalid email format. Please enter a valid email address."
+            continue
+        fi
+    done
+    
+    log_info "🔐 Generating new ED25519 SSH key pair for: $user_email"
+    
+    # Generate SSH key with user's email
+    if ssh-keygen -t ed25519 -C "$user_email" -f ~/.ssh/id_ed25519 -N ""; then
+        log_success "✅ SSH key pair generated successfully!"
+        
+        # Set proper permissions
+        chmod 600 ~/.ssh/id_ed25519
+        chmod 644 ~/.ssh/id_ed25519.pub
+        
+        # Create SSH config
+        if [ ! -f ~/.ssh/config ]; then
+            log_info "Creating SSH config..."
+            cat > ~/.ssh/config << EOF
+Host github.com
+    AddKeysToAgent yes
+    UseKeychain yes
+    IdentityFile ~/.ssh/id_ed25519
+
+Host *
+    AddKeysToAgent yes
+    UseKeychain yes
+EOF
+            chmod 600 ~/.ssh/config
+        fi
+
+        # Add to SSH agent
+        log_info "Adding new SSH key to agent..."
+        eval "$(ssh-agent -s)"
+        ssh-add --apple-use-keychain ~/.ssh/id_ed25519
+        
+        # Display the public key
+        echo
+        log_info "🔑 Your new SSH public key (copy this):"
+        log_info "Generated for: $user_email"
+        echo "----------------------------------------"
+        cat ~/.ssh/id_ed25519.pub
+        echo "----------------------------------------"
+        
+        # Automatically copy to clipboard if pbcopy is available
+        if command -v pbcopy >/dev/null 2>&1; then
+            pbcopy < ~/.ssh/id_ed25519.pub
+            log_success "✅ Public key copied to clipboard!"
+        fi
+        
+        provide_github_instructions
+        
+        # Offer to backup keys to dotfiles
+        offer_dotfiles_backup
+        
+        log_done "New SSH keys created and configured successfully for $user_email"
+    else
+        log_error "❌ Failed to generate SSH keys"
+        return 1
+    fi
+}
+
+
+# Helper function to provide GitHub setup instructions
+provide_github_instructions() {
+    echo
+    log_info "🚀 NEXT STEPS - Add your SSH key to GitHub:"
+    echo
+    echo "1. 📋 Copy the public key above (or it's already in your clipboard)"
+    echo "2. 🌐 Open GitHub SSH settings: https://github.com/settings/keys"
+    echo "3. 🆕 Click the green 'New SSH key' button"
+    echo "4. 📝 Fill in the form:"
+    echo "   • Title: Give it a descriptive name (e.g., '$(hostname) - $(date +%Y-%m-%d)')"
+    echo "   • Key type: Authentication Key (default)"
+    echo "   • Key: Paste your public key here"
+    echo "5. ✅ Click 'Add SSH key'"
+    echo "6. 🔐 Enter your GitHub password if prompted"
+    echo
+    log_warning "⚠️  After adding to GitHub, test the connection:"
+    echo "   ssh -T git@github.com"
+    echo
+    echo "   You should see: 'Hi [username]! You've successfully authenticated...'"
+    echo
+    
+    # Wait for user confirmation
+    read -p "Press Enter when you've added the SSH key to GitHub and want to test the connection..." -r
+    
+    log_info "🧪 Testing SSH connection to GitHub..."
+    if ssh -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
+        log_success "✅ SSH connection to GitHub successful!"
+    else
+        log_warning "⚠️  SSH connection test failed or needs manual verification"
+        log_info "Please run 'ssh -T git@github.com' manually to test"
+    fi
+}
+
+
+# Helper function to offer backing up keys to dotfiles
+offer_dotfiles_backup() {
+    echo
+    read -p "🔄 Would you like to backup these SSH keys to your dotfiles repo? (y/n): " -n 1 -r
+    echo
+    
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        if [ -d "$DOTFILES_DIR" ]; then
+            log_info "Backing up SSH keys to dotfiles repository..."
+            
+            # Copy keys to dotfiles (be careful with private keys!)
+            cp ~/.ssh/id_ed25519 "$DOTFILES_DIR/"
+            cp ~/.ssh/id_ed25519.pub "$DOTFILES_DIR/"
+            
+            # Add to git (if it's a git repo)
+            if [ -d "$DOTFILES_DIR/.git" ]; then
+                cd "$DOTFILES_DIR"
+                git add id_ed25519 id_ed25519.pub
+                
+                log_warning "⚠️  SECURITY NOTE:"
+                echo "  - Your private SSH key has been added to your dotfiles"
+                echo "  - Make sure your dotfiles repo is PRIVATE"
+                echo "  - Consider using git-crypt or similar for encryption"
+                echo "  - You can commit these changes later with:"
+                echo "    cd $DOTFILES_DIR && git commit -m 'Add SSH keys'"
+            fi
+            
+            log_done "SSH keys backed up to dotfiles"
+        else
+            log_warning "Dotfiles directory not found, skipping backup"
         fi
     else
-        log_info "Cloning dotfiles repository..."
-        git clone "$DOTFILES_REPO" "$DOTFILES_DIR"
-    fi
-
-    if [ -d "$DOTFILES_DIR" ]; then
-        log_done "Dotfiles repository setup completed"
-    else
-        log_error "Failed to setup dotfiles repository"
-        exit 1
+        log_info "Skipping SSH key backup to dotfiles"
+        echo
+        log_info "💡 Manual backup option:"
+        echo "  cp ~/.ssh/id_ed25519* $DOTFILES_DIR/"
     fi
 }
 
@@ -445,10 +584,25 @@ EOF
 
         log_done "SSH keys configured successfully"
     else
-        log_warning "SSH keys not found in dotfiles repo"
-        log_info "You can generate new SSH keys with: ssh-keygen -t ed25519 -C \"your_email@example.com\""
+        # Enhanced SSH key creation guide
+        log_warning "SSH keys not found in dotfiles repository"
+        log_info "Let's create new SSH keys for this machine..."
+        
+        # Check if local SSH keys already exist
+        if [ -f ~/.ssh/id_ed25519 ] && [ -f ~/.ssh/id_ed25519.pub ]; then
+            log_info "✅ SSH keys already exist locally at ~/.ssh/id_ed25519"
+            
+            # Configure existing keys
+            setup_existing_ssh_keys
+        else
+            log_info "No SSH keys found locally. Creating new ones..."
+            
+            # Interactive SSH key generation
+            create_new_ssh_keys
+        fi
     fi
 
+    # Always set up the dotfiles repo SSH remote
     if [ -d "$DOTFILES_DIR/.git" ]; then
         log_info "Switching dotfiles repo remote to SSH..."
         cd "$DOTFILES_DIR"
@@ -626,6 +780,40 @@ symlink_dotfiles() {
     log_done "Dotfiles symlinked successfully"
 }
 
+setup_macos_customizations() {
+    log_step "Applying macOS customizations..."
+    
+    log_info "Configuring Dock..."
+    defaults write com.apple.dock show-recents -bool false
+    defaults write com.apple.dock autohide-delay -int 0
+    defaults write com.apple.dock autohide-time-modifier -float 0.4
+    defaults write com.apple.dock tilesize -int 64
+    defaults write com.apple.dock magnification -bool true
+    defaults write com.apple.dock magnification -int 52
+    defaults write com.apple.dock showAppExposeGestureEnabled -bool true
+    defaults -currentHost write NSGlobalDomain com.apple.trackpad.threeFingerVertSwipeGesture -int 2
+
+    killall Dock
+    log_done "Dock configured"
+
+    log_info "Applying System Settings..."
+    defaults write com.apple.AppleMultitouchTrackpad Clicking -bool true
+    defaults write com.apple.driver.AppleBluetoothMultitouch.trackpad Clicking -bool true
+    
+    run_sudo defaults -currentHost write NSGlobalDomain com.apple.mouse.tapBehavior -int 1
+    run_sudo defaults write NSGlobalDomain com.apple.mouse.tapBehavior -int 1    
+    
+    log_done "System Settings applied"
+    
+    log_info "Setting up screenshot folder..."
+    mkdir -p ~/Pictures/Screenshots
+    defaults write com.apple.screencapture location ~/Pictures/Screenshots
+    killall SystemUIServer
+    log_done "Screenshot folder configured"
+    
+    log_done "macOS customizations applied"
+}
+
 setup_terminal_profile() {
     log_step "Setting up terminal profile..."
 
@@ -649,6 +837,43 @@ EOF
         log_warning " - Set font to 'MesloLGS NF' (size 12pt or preferred)"
         log_warning " - Import any custom terminal profiles from your dotfiles"
         log_info "================================"
+    fi
+}
+
+final_steps() {
+    log_step "Performing final setup steps..."
+
+    if [ "$SHELL" != "$(which zsh)" ]; then
+        log_info "Changing default shell to zsh..."
+        chsh -s "$(which zsh)"
+        log_done "Default shell changed to zsh"
+    else
+        log_done "Default shell is already zsh"
+    fi
+
+    log_info "=== MANUAL STEPS REQUIRED ==="
+    log_warning "1. Configure your terminal to use 'MesloLGS NF' font:"
+    log_warning "   - Terminal.app: Preferences > Profiles > Text > Font"
+    log_warning "   - iTerm2: Preferences > Profiles > Text > Font"
+    log_warning "   - Choose 'MesloLGS NF' and set size to 12pt or preferred"
+    log_warning "2. If this is a new machine, add your SSH public key to GitHub:"
+    log_warning "   - Copy: pbcopy < ~/.ssh/id_ed25519.pub"
+    log_warning "   - Add to: https://github.com/settings/keys"
+    log_warning "3. Test SSH connection: ssh -T git@github.com"
+    log_warning "4. Run 'p10k configure' to customize your Powerlevel10k theme"
+    log_info "================================"
+
+    log_done "Final setup steps completed"
+    
+    log_step "A restart is recommended to ensure all changes take effect properly."
+    read -p "Would you like to restart now? (y/n): " -n 1 -r
+    echo
+
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        run_sudo shutdown -r now
+    else
+        log_warning "Please restart your Mac manually when convenient."
+        log_warning "Run 'sudo shutdown -r now' to restart via terminal"
     fi
 }
 
