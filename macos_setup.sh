@@ -45,7 +45,7 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-DOTFILES_REPO="https://github.com/Shrishesha4/dotfiles.git"
+DOTFILES_REPO="https://github.com/Shrishesha4/.dotfiles.git"
 DOTFILES_DIR="$HOME/.dotfiles"
 BACKUP_DIR="$HOME/.dotfiles_backup_$(date +%Y%m%d_%H%M%S)"
 
