@@ -16,6 +16,7 @@ brew "wget"
 brew "yarn"
 
 cask "brave-browser"
+cask "android-studio"
 cask "coconutbattery"
 cask "docker-desktop"
 cask "font-meslo-for-powerlevel10k"
