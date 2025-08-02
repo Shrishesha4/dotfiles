@@ -46,8 +46,8 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 DOTFILES_REPO="https://github.com/Shrishesha4/dotfiles.git"
-DOTFILES_DIR="$HOME/dotfiles"
-BACKUP_DIR="$HOME/dotfiles_backup_$(date +%Y%m%d_%H%M%S)"
+DOTFILES_DIR="$HOME/.dotfiles"
+BACKUP_DIR="$HOME/.dotfiles_backup_$(date +%Y%m%d_%H%M%S)"
 
 TOTAL_STEPS=12
 CURRENT_STEP=0
@@ -275,38 +275,10 @@ setup_homebrew() {
         brew bundle install || log_warning "Some packages might have failed to install"
         log_done "Homebrew packages installed from Brewfile"
     else
-        log_warning "Brewfile not found in dotfiles repo, installing essential packages manually..."
-
-        log_step "Installing essential Homebrew packages..."
-        local essential_packages=(
-            "git" "wget" "curl" "pyenv" "rbenv" "fzf" "gh" "docker"
-            "node" "yarn" "postgresql@15" "fastfetch" "mas" "java" 
-        )
-
-        for package in "${essential_packages[@]}"; do
-            if ! brew list "$package" >/dev/null 2>&1; then
-                log_info "Installing $package..."
-                brew install "$package" || log_warning "Failed to install $package"
-            else
-                log_done "$package already installed"
-            fi
-        done
-
-        log_step "Installing essential Homebrew casks..."
-        local essential_casks=(
-            "visual-studio-code" "brave-browser" "notion" "vlc" "docker-desktop"
-            "rectangle" "font-meslo-for-powerlevel10k" "coconutbattery" "proton-pass" 
-            "middleclick" "localxpose" "raycast" "whatsapp"
-            "locasend" "github" "qbittorrent" "postman" "mac-mouse-fix"
-        )
-        for cask in "${essential_casks[@]}"; do
-            if ! brew list --cask "$cask" >/dev/null 2>&1; then
-                log_info "Installing $cask..."
-                brew install --cask "$cask" || log_warning "Failed to install $cask"
-            else
-                log_done "$cask already installed"
-            fi
-        done
+        log_warning "Brewfile not found in dotfiles repo"
+        
+        # Interactive package selection
+        select_homebrew_packages
     fi
 
     log_step "Accepting Xcode license..."
@@ -331,15 +303,356 @@ setup_homebrew() {
     fi  
 }
 
-# Helper function for existing SSH keys
+# Single-page scrollable package selection
+select_homebrew_packages() {
+    echo
+    log_info "🍺 Interactive Homebrew Package Selection"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo
+    
+    # Package definitions
+    local packages=(
+        "git|F|Essential version control system"
+        "gh|F|GitHub CLI for repository management"
+        "curl|F|Command line tool for transferring data"
+        "wget|F|Internet file retriever"
+        "fzf|F|Fuzzy finder for command line"
+        "node|F|JavaScript runtime environment"
+        "yarn|F|Fast, reliable dependency manager"
+        "pyenv|F|Python version management"
+        "rbenv|F|Ruby version management"
+        "java|F|Java Development Kit"
+        "postgresql@15|F|Object-relational database system"
+        "docker|F|Container platform"
+        "mas|F|Mac App Store command line interface"
+        "fastfetch|F|System information tool"
+        "jq|F|Lightweight JSON processor"
+        "tree|F|Display directories as trees"
+        "htop|F|Improved top (interactive process viewer)"
+        "bat|F|Clone of cat with syntax highlighting"
+        "visual-studio-code|C|Code editor by Microsoft"
+        "notion|C|Note-taking and organization app"
+        "raycast|C|Productivity launcher and search tool"
+        "rectangle|C|Window management utility"
+        "brave-browser|C|Privacy-focused web browser"
+        "docker-desktop|C|Docker GUI application"
+        "postman|C|API development environment"
+        "github|C|GitHub Desktop application"
+        "iterm2|C|Terminal emulator"
+        "whatsapp|C|WhatsApp messaging app"
+        "discord|C|Voice and text chat for gamers"
+        "slack|C|Team collaboration tool"
+        "vlc|C|Media player"
+        "localsend|C|Cross-platform file sharing"
+        "qbittorrent|C|BitTorrent client"
+        "proton-pass|C|Password manager by Proton"
+        "1password|C|Password manager"
+        "mac-mouse-fix|C|Mouse utility for Mac"
+        "middleclick|C|Middle click emulator"
+        "font-meslo-for-powerlevel10k|C|Font for terminal themes"
+    )
+    
+    local total=${#packages[@]}
+    local selected=()
+    
+    # Initialize selection array
+    for ((i=0; i<total; i++)); do
+        selected[i]=0
+    done
+    
+    # Display all packages once with numbers
+    display_all_packages() {
+        echo "Select packages by typing their numbers (space-separated)"
+        echo "Example: 1 5 12 18    or    1-10 15 20-25    or    all"
+        echo "[F] = Formula (CLI tool) | [C] = Cask (GUI app)"
+        echo
+        
+        # Display in 2 columns for better readability
+        local half=$((total / 2))
+        
+        printf "%-40s %s\n" "Left Column:" "Right Column:"
+        printf "%-40s %s\n" "============" "=============="
+        
+        for ((i=0; i<half; i++)); do
+            local left_pkg_info="${packages[i]}"
+            local left_pkg_name=$(echo "$left_pkg_info" | cut -d'|' -f1)
+            local left_pkg_type=$(echo "$left_pkg_info" | cut -d'|' -f2)
+            
+            local left_checkbox="[ ]"
+            local left_color=""
+            
+            if ((selected[i] == 1)); then
+                left_checkbox="[✓]"
+                left_color="$GREEN"
+            fi
+            
+            local left_display=$(printf "%2d. ${left_color}${left_checkbox} %-20s [%s]${NC}" \
+                                "$((i + 1))" "$left_pkg_name" "$left_pkg_type")
+            
+            # Right column
+            local right_index=$((i + half))
+            local right_display=""
+            
+            if ((right_index < total)); then
+                local right_pkg_info="${packages[right_index]}"
+                local right_pkg_name=$(echo "$right_pkg_info" | cut -d'|' -f1)
+                local right_pkg_type=$(echo "$right_pkg_info" | cut -d'|' -f2)
+                
+                local right_checkbox="[ ]"
+                local right_color=""
+                
+                if ((selected[right_index] == 1)); then
+                    right_checkbox="[✓]"
+                    right_color="$GREEN"
+                fi
+                
+                right_display=$(printf "%2d. ${right_color}${right_checkbox} %-20s [%s]${NC}" \
+                               "$((right_index + 1))" "$right_pkg_name" "$right_pkg_type")
+            fi
+            
+            printf "%-50s %s\n" "$left_display" "$right_display"
+        done
+        
+        echo
+    }
+    
+    # Function to parse number ranges
+    parse_selection() {
+        local input="$1"
+        local numbers=()
+        
+        # Handle 'all' selection
+        if [[ "$input" == "all" ]]; then
+            for ((i=1; i<=total; i++)); do
+                numbers+=($i)
+            done
+            echo "${numbers[@]}"
+            return
+        fi
+        
+        # Split by spaces
+        for item in $input; do
+            if [[ "$item" =~ ^[0-9]+$ ]]; then
+                # Single number
+                if ((item >= 1 && item <= total)); then
+                    numbers+=($item)
+                fi
+            elif [[ "$item" =~ ^[0-9]+-[0-9]+$ ]]; then
+                # Range (e.g., 1-5)
+                local start=$(echo "$item" | cut -d'-' -f1)
+                local end=$(echo "$item" | cut -d'-' -f2)
+                
+                if ((start >= 1 && end <= total && start <= end)); then
+                    for ((i=start; i<=end; i++)); do
+                        numbers+=($i)
+                    done
+                fi
+            fi
+        done
+        
+        echo "${numbers[@]}"
+    }
+    
+    # Initial display
+    display_all_packages
+    
+    # Selection phase
+    while true; do
+        local selected_count=0
+        for s in "${selected[@]}"; do
+            ((selected_count += s))
+        done
+        
+        echo "Currently selected: $selected_count packages"
+        echo
+        echo "Commands:"
+        echo "  [numbers]     : Select/deselect packages (e.g., 1 5 12 or 1-10)"
+        echo "  show          : Show currently selected packages"
+        echo "  clear         : Clear all selections"
+        echo "  install       : Install selected packages"
+        echo "  quit          : Exit without installing"
+        echo
+        
+        read -p "Enter command: " input
+        
+        case "$input" in
+            "show"|"s")
+                echo
+                echo "📦 Currently Selected Packages:"
+                local count=0
+                for ((i=0; i<total; i++)); do
+                    if ((selected[i] == 1)); then
+                        local pkg_info="${packages[i]}"
+                        local pkg_name=$(echo "$pkg_info" | cut -d'|' -f1)
+                        local pkg_type=$(echo "$pkg_info" | cut -d'|' -f2)
+                        echo "  $((count + 1)). ✓ $pkg_name [$pkg_type]"
+                        ((count++))
+                    fi
+                done
+                if ((count == 0)); then
+                    echo "  No packages selected"
+                fi
+                echo
+                ;;
+            "clear"|"c")
+                for ((i=0; i<total; i++)); do
+                    selected[i]=0
+                done
+                echo "✓ All selections cleared"
+                echo
+                ;;
+            "install"|"i")
+                break
+                ;;
+            "quit"|"q")
+                log_warning "Package selection cancelled"
+                return 0
+                ;;
+            "refresh"|"r")
+                display_all_packages
+                ;;
+            "")
+                continue
+                ;;
+            *)
+                # Parse as number selection
+                local numbers=($(parse_selection "$input"))
+                
+                if ((${#numbers[@]} == 0)); then
+                    echo "❌ Invalid input. Try: 1 5 12  or  1-10  or  all"
+                    echo
+                    continue
+                fi
+                
+                local toggled=()
+                for num in "${numbers[@]}"; do
+                    local index=$((num - 1))
+                    if ((index >= 0 && index < total)); then
+                        local pkg_name=$(echo "${packages[index]}" | cut -d'|' -f1)
+                        
+                        if ((selected[index] == 1)); then
+                            selected[index]=0
+                            toggled+=("Deselected: $pkg_name")
+                        else
+                            selected[index]=1
+                            toggled+=("Selected: $pkg_name")
+                        fi
+                    fi
+                done
+                
+                # Show what was toggled
+                for msg in "${toggled[@]}"; do
+                    echo "$msg"
+                done
+                echo
+                ;;
+        esac
+    done
+    
+    # Process selections
+    local install_packages=()
+    local install_types=()
+    
+    for ((i=0; i<total; i++)); do
+        if ((selected[i] == 1)); then
+            local pkg_info="${packages[i]}"
+            local pkg_name=$(echo "$pkg_info" | cut -d'|' -f1)
+            local pkg_type=$(echo "$pkg_info" | cut -d'|' -f2)
+            
+            install_packages+=("$pkg_name")
+            if [[ "$pkg_type" == "C" ]]; then
+                install_types+=("cask")
+            else
+                install_types+=("formula")
+            fi
+        fi
+    done
+    
+    if ((${#install_packages[@]} == 0)); then
+        log_warning "No packages selected"
+        return 0
+    fi
+    
+    echo
+    log_info "📦 Ready to install ${#install_packages[@]} packages:"
+    echo
+    
+    # Show installation summary in columns
+    local formula_count=0
+    local cask_count=0
+    
+    for type in "${install_types[@]}"; do
+        if [[ "$type" == "formula" ]]; then
+            ((formula_count++))
+        else
+            ((cask_count++))
+        fi
+    done
+    
+    if ((formula_count > 0)); then
+        echo "🔧 Formulas ($formula_count):"
+        for ((i=0; i<${#install_packages[@]}; i++)); do
+            if [[ "${install_types[i]}" == "formula" ]]; then
+                echo "  • ${install_packages[i]}"
+            fi
+        done
+        echo
+    fi
+    
+    if ((cask_count > 0)); then
+        echo "🖥️  Applications ($cask_count):"
+        for ((i=0; i<${#install_packages[@]}; i++)); do
+            if [[ "${install_types[i]}" == "cask" ]]; then
+                echo "  • ${install_packages[i]}"
+            fi
+        done
+        echo
+    fi
+    
+    read -p "Proceed with installation? (y/n): " -n 1 -r
+    echo
+    
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        log_warning "Installation cancelled"
+        return 0
+    fi
+    
+    # Install packages
+    echo
+    log_info "🚀 Starting installation..."
+    echo
+    
+    for ((i=0; i<${#install_packages[@]}; i++)); do
+        local pkg="${install_packages[i]}"
+        local type="${install_types[i]}"
+        
+        if [[ "$type" == "cask" ]]; then
+            if ! brew list --cask "$pkg" &>/dev/null; then
+                log_info "Installing $pkg [cask]..."
+                brew install --cask "$pkg" || log_warning "Failed to install $pkg"
+            else
+                log_done "$pkg [cask] already installed"
+            fi
+        else
+            if ! brew list "$pkg" &>/dev/null; then
+                log_info "Installing $pkg [formula]..."
+                brew install "$pkg" || log_warning "Failed to install $pkg"
+            else
+                log_done "$pkg [formula] already installed"
+            fi
+        fi
+    done
+    
+    log_done "🎉 Package installation completed!"
+}
+
+
 setup_existing_ssh_keys() {
     log_info "Configuring existing SSH keys..."
     
-    # Set proper permissions
     chmod 600 ~/.ssh/id_ed25519
     chmod 644 ~/.ssh/id_ed25519.pub
 
-    # Create SSH config if it doesn't exist
     if [ ! -f ~/.ssh/config ]; then
         log_info "Creating SSH config..."
         cat > ~/.ssh/config << EOF
@@ -834,11 +1147,26 @@ setup_macos_customizations() {
     defaults write com.apple.dock autohide-time-modifier -float 0.4
     defaults write com.apple.dock tilesize -int 64
     defaults write com.apple.dock magnification -bool true
-    defaults write com.apple.dock magnification -int 52
+    defaults write com.apple.dock magnification -int 44
     defaults write com.apple.dock showAppExposeGestureEnabled -bool true
     defaults -currentHost write NSGlobalDomain com.apple.trackpad.threeFingerVertSwipeGesture -int 2
 
     killall Dock
+
+    if command_exists dockutil; then
+        dockutil --remove all
+        dockutil --add /System/Applications/Safari.app
+        dockutil --add /Applications/Brave\ Browser.app
+        dockutil --add /System/Applications/Reminders.app
+        dockutil --add /Applications/Notion.app
+        dockutil --add /Applications/Visual\ Studio\ Code.app
+        dockutil --add /System/Applications/Utilities/Terminal.app
+        dockutil --add ~/Downloads --view grid --display stack
+    else
+        log_warning "dockutil not found, skipping clear Dock and add operations"
+        log_info "You can install dockutil via Homebrew: brew install dockutil"
+
+    fi
     log_done "Dock configured"
 
     log_info "Applying System Settings..."
