@@ -12,6 +12,7 @@ brew "postgresql@15", restart_service: :changed
 brew "pyenv"
 brew "rbenv"
 brew "scrcpy"
+brew "android-platform-tools"
 brew "wget"
 brew "yarn"
 
