@@ -2,6 +2,37 @@
 
 set -e
 
+SUDO_PASSWORD=""
+
+initialize_sudo() {
+    echo "This script requires administrator privileges."
+    echo "Please enter your password. You will NOT be asked again during this session."
+    echo -n "Password: "
+    read -s SUDO_PASSWORD
+    echo
+
+    if ! echo "$SUDO_PASSWORD" | sudo -S -v 2>/dev/null; then
+        echo "❌ Invalid password"
+        exit 1
+    fi
+
+    echo "✅ Password verified. Running setup..."
+}
+
+run_sudo() {
+    echo "$SUDO_PASSWORD" | sudo -S "$@" 2>/dev/null
+    return $?
+}
+
+cleanup_password() {
+    SUDO_PASSWORD=""
+    unset SUDO_PASSWORD
+}
+
+trap cleanup_password EXIT
+
+initialize_sudo
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -77,12 +108,12 @@ for arg in "$@"; do
     fi
 done
 
-ICON_INFO="📄"      # 📄
-ICON_SUCCESS="✅"    # ✅
-ICON_WARNING="⚠️"    # ⚠️
-ICON_ERROR="❌"      # ❌
-ICON_STEP="⏳"       # ⏳
-ICON_DONE="🎉"      # 🎉
+ICON_INFO="📄"
+ICON_SUCCESS="✅"
+ICON_WARNING="⚠️"
+ICON_ERROR="❌"
+ICON_STEP="⏳"
+ICON_DONE="🎉"
 
 log_info() {
     local msg="$1"
@@ -147,7 +178,6 @@ safe_execute() {
     fi
 }
 
-
 cleanup() {
     if [ $? -ne 0 ]; then
         log_error "Script failed. Check the logs above for details."
@@ -158,95 +188,7 @@ cleanup() {
 
 trap cleanup EXIT
 
-main() {
-    log_step "Starting macOS Developer Environment Setup..."
-    log_info "Backup directory: $BACKUP_DIR"
-    
-    mkdir -p "$BACKUP_DIR"
-    
-    local setup_errors=0
-    
-    log_step "Checking Xcode Command Line Tools..."
-    install_xcode_cli || ((setup_errors++))
-    log_step "Cloning and setting up dotfiles..."
-    setup_dotfiles_repo || ((setup_errors++))
-    log_step "Symlinking dotfiles..."
-    symlink_dotfiles || ((setup_errors++))
-    log_step "Setting up Homebrew and packages..."
-    setup_homebrew || ((setup_errors++))
-    log_step "Configuring Oh My Zsh and Powerlevel10k..."
-    
-    log_step "Switching to dotfiles repository..."
-    cd "$DOTFILES_DIR"
-    git checkout main
-    log_step "Changing to home directory..."
-    cd "$HOME"
-
-    setup_oh_my_zsh || ((setup_errors++))
-    log_step "Setting up SSH keys..."
-    setup_ssh_keys || ((setup_errors++))
-    log_step "Installing Python..."
-    setup_python || ((setup_errors++))
-    log_step "Installing Ruby..."
-    setup_ruby || ((setup_errors++))
-    log_step "Configuring Terminal profile..."
-    setup_terminal_profile || ((setup_errors++))
-    log_step "Applying macOS customizations..."
-    setup_macos_customizations || ((setup_errors++))
-    log_step "Finalizing setup..."
-    final_steps || ((setup_errors++))
-    
-    if [ $setup_errors -eq 0 ]; then
-        log_done "Setup completed successfully with no errors!"
-    else
-        log_warning "Setup completed with $setup_errors function(s) having issues. Check the logs above for details."
-    fi
-    
-    log_info "Please restart your terminal or run 'source ~/.zshrc' to apply changes."
-}
-
-install_xcode_cli() {
-    log_step "Checking for Xcode Command Line Tools..."
-    if ! xcode-select -p &>/dev/null; then
-        log_info "Xcode Command Line Tools not found. Installing..."
-        softwareupdate --install-rosetta --agree-to-license
-        xcode-select --install
-        until xcode-select -p &>/dev/null; do
-            sleep 5
-        done
-        log_done "Xcode Command Line Tools installed."
-    else
-        log_done "Xcode Command Line Tools already installed."
-    fi
-}
-
-setup_dotfiles_repo() {
-    log_step "Setting up dotfiles repository..."
-
-    if [ -d "$DOTFILES_DIR" ]; then
-        log_warning "Dotfiles directory already exists at $DOTFILES_DIR"
-        if [ -d "$DOTFILES_DIR/.git" ]; then
-            log_info "Updating existing dotfiles repository..."
-            cd "$DOTFILES_DIR"
-            git pull origin main || git pull origin master || log_warning "Could not update dotfiles repo"
-        else
-            log_warning "Directory exists but not a git repository. Moving to backup..."
-            mv "$DOTFILES_DIR" "$BACKUP_DIR/dotfiles_existing"
-            log_info "Cloning dotfiles repository..."
-            git clone "$DOTFILES_REPO" "$DOTFILES_DIR"
-        fi
-    else
-        log_info "Cloning dotfiles repository..."
-        git clone "$DOTFILES_REPO" "$DOTFILES_DIR"
-    fi
-
-    if [ -d "$DOTFILES_DIR" ]; then
-        log_done "Dotfiles repository setup completed"
-    else
-        log_error "Failed to setup dotfiles repository"
-        exit 1
-    fi
-}
+# MODIFIED FUNCTIONS - Replace sudo with run_sudo
 
 setup_homebrew() {
     log_step "Setting up Homebrew..."
@@ -309,7 +251,6 @@ setup_homebrew() {
             "rectangle" "font-meslo-for-powerlevel10k" "coconutbattery" "proton-pass" 
             "middleclick" "localxpose" "raycast" "whatsapp"
             "locasend" "github" "qbittorrent" "postman" "mac-mouse-fix"
-
         )
         for cask in "${essential_casks[@]}"; do
             if ! brew list --cask "$cask" >/dev/null 2>&1; then
@@ -322,11 +263,11 @@ setup_homebrew() {
     fi
 
     log_step "Accepting Xcode license..."
-    if sudo xcodebuild -license check &>/dev/null; then
+    if run_sudo xcodebuild -license check &>/dev/null; then
         log_done "Xcode license already accepted"
     else
         log_info "Xcode license not accepted. Accepting now..."
-        sudo xcodebuild -license accept || log_warning "Failed to accept Xcode license"
+        run_sudo xcodebuild -license accept || log_warning "Failed to accept Xcode license"
     fi
 
     log_info "Running brew cleanup..."
@@ -341,8 +282,121 @@ setup_homebrew() {
     else
         log_warning "brew services not found, skipping service management"
     fi  
+}
 
+setup_macos_customizations() {
+    log_step "Applying macOS customizations..."
     
+    log_info "Configuring Dock..."
+    defaults write com.apple.dock show-recents -bool false
+    defaults write com.apple.dock autohide-delay -int 0
+    defaults write com.apple.dock autohide-time-modifier -float 0.4
+    defaults write com.apple.dock tilesize -int 64
+    defaults write com.apple.dock magnification -bool true
+    defaults write com.apple.dock magnification -int 52
+    defaults write com.apple.dock showAppExposeGestureEnabled -bool true
+    defaults -currentHost write NSGlobalDomain com.apple.trackpad.threeFingerVertSwipeGesture -int 2
+
+    killall Dock
+    log_done "Dock configured"
+
+    log_info "Applying System Settings..."
+    defaults write com.apple.AppleMultitouchTrackpad Clicking -bool true
+    defaults write com.apple.driver.AppleBluetoothMultitouch.trackpad Clicking -bool true
+    
+    run_sudo defaults -currentHost write NSGlobalDomain com.apple.mouse.tapBehavior -int 1
+    run_sudo defaults write NSGlobalDomain com.apple.mouse.tapBehavior -int 1    
+    
+    log_done "System Settings applied"
+    
+    log_info "Setting up screenshot folder..."
+    mkdir -p ~/Pictures/Screenshots
+    defaults write com.apple.screencapture location ~/Pictures/Screenshots
+    killall SystemUIServer
+    log_done "Screenshot folder configured"
+    
+    log_done "macOS customizations applied"
+}
+
+final_steps() {
+    log_step "Performing final setup steps..."
+
+    if [ "$SHELL" != "$(which zsh)" ]; then
+        log_info "Changing default shell to zsh..."
+        chsh -s "$(which zsh)"
+        log_done "Default shell changed to zsh"
+    else
+        log_done "Default shell is already zsh"
+    fi
+
+    log_info "=== MANUAL STEPS REQUIRED ==="
+    log_warning "1. Configure your terminal to use 'MesloLGS NF' font:"
+    log_warning "   - Terminal.app: Preferences > Profiles > Text > Font"
+    log_warning "   - iTerm2: Preferences > Profiles > Text > Font"
+    log_warning "   - Choose 'MesloLGS NF' and set size to 12pt or preferred"
+    log_warning "2. If this is a new machine, add your SSH public key to GitHub:"
+    log_warning "   - Copy: pbcopy < ~/.ssh/id_ed25519.pub"
+    log_warning "   - Add to: https://github.com/settings/keys"
+    log_warning "3. Test SSH connection: ssh -T git@github.com"
+    log_warning "4. Run 'p10k configure' to customize your Powerlevel10k theme"
+    log_info "================================"
+
+    log_done "Final setup steps completed"
+    
+    log_step "A restart is recommended to ensure all changes take effect properly."
+    read -p "Would you like to restart now? (y/n): " -n 1 -r
+    echo
+
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        run_sudo shutdown -r now
+    else
+        log_warning "Please restart your Mac manually when convenient."
+        log_warning "Run 'sudo shutdown -r now' to restart via terminal"
+    fi
+}
+
+
+install_xcode_cli() {
+    log_step "Checking for Xcode Command Line Tools..."
+    if ! xcode-select -p &>/dev/null; then
+        log_info "Xcode Command Line Tools not found. Installing..."
+        softwareupdate --install-rosetta --agree-to-license
+        xcode-select --install
+        until xcode-select -p &>/dev/null; do
+            sleep 5
+        done
+        log_done "Xcode Command Line Tools installed."
+    else
+        log_done "Xcode Command Line Tools already installed."
+    fi
+}
+
+setup_dotfiles_repo() {
+    log_step "Setting up dotfiles repository..."
+
+    if [ -d "$DOTFILES_DIR" ]; then
+        log_warning "Dotfiles directory already exists at $DOTFILES_DIR"
+        if [ -d "$DOTFILES_DIR/.git" ]; then
+            log_info "Updating existing dotfiles repository..."
+            cd "$DOTFILES_DIR"
+            git pull origin main || git pull origin master || log_warning "Could not update dotfiles repo"
+        else
+            log_warning "Directory exists but not a git repository. Moving to backup..."
+            mv "$DOTFILES_DIR" "$BACKUP_DIR/dotfiles_existing"
+            log_info "Cloning dotfiles repository..."
+            git clone "$DOTFILES_REPO" "$DOTFILES_DIR"
+        fi
+    else
+        log_info "Cloning dotfiles repository..."
+        git clone "$DOTFILES_REPO" "$DOTFILES_DIR"
+    fi
+
+    if [ -d "$DOTFILES_DIR" ]; then
+        log_done "Dotfiles repository setup completed"
+    else
+        log_error "Failed to setup dotfiles repository"
+        exit 1
+    fi
 }
 
 setup_ssh_keys() {
@@ -572,39 +626,6 @@ symlink_dotfiles() {
     log_done "Dotfiles symlinked successfully"
 }
 
-setup_macos_customizations() {
-    log_step "Applying macOS customizations..."
-    
-    log_info "Configuring Dock..."
-    defaults write com.apple.dock show-recents -bool false
-    defaults write com.apple.dock autohide-delay -int 0
-    defaults write com.apple.dock autohide-time-modifier -float 0.4
-    defaults write com.apple.dock tilesize -int 64
-    defaults write com.apple.dock magnification -bool true
-    defaults write com.apple.dock magnification -int 52
-    defaults write com.apple.dock showAppExposeGestureEnabled -bool true
-    defaults -currentHost write NSGlobalDomain com.apple.trackpad.threeFingerVertSwipeGesture -int 2
-
-    killall Dock
-    log_done "Dock configured"
-
-    log_info "Applying System Settings..."
-    defaults write com.apple.AppleMultitouchTrackpad Clicking -bool true
-    defaults write com.apple.driver.AppleBluetoothMultitouch.trackpad Clicking -bool true
-    sudo defaults -currentHost write NSGlobalDomain com.apple.mouse.tapBehavior -int 1
-    sudo defaults write NSGlobalDomain com.apple.mouse.tapBehavior -int 1    
-    
-    log_done "System Settings applied"
-    
-    log_info "Setting up screenshot folder..."
-    mkdir -p ~/Pictures/Screenshots
-    defaults write com.apple.screencapture location ~/Pictures/Screenshots
-    killall SystemUIServer
-    log_done "Screenshot folder configured"
-    
-    log_done "macOS customizations applied"
-}
-
 setup_terminal_profile() {
     log_step "Setting up terminal profile..."
 
@@ -631,41 +652,51 @@ EOF
     fi
 }
 
-final_steps() {
-    log_step "Performing final setup steps..."
-
-    if [ "$SHELL" != "$(which zsh)" ]; then
-        log_info "Changing default shell to zsh..."
-        chsh -s "$(which zsh)"
-        log_done "Default shell changed to zsh"
-    else
-        log_done "Default shell is already zsh"
-    fi
-
-    log_info "=== MANUAL STEPS REQUIRED ==="
-    log_warning "1. Configure your terminal to use 'MesloLGS NF' font:"
-    log_warning "   - Terminal.app: Preferences > Profiles > Text > Font"
-    log_warning "   - iTerm2: Preferences > Profiles > Text > Font"
-    log_warning "   - Choose 'MesloLGS NF' and set size to 12pt or preferred"
-    log_warning "2. If this is a new machine, add your SSH public key to GitHub:"
-    log_warning "   - Copy: pbcopy < ~/.ssh/id_ed25519.pub"
-    log_warning "   - Add to: https://github.com/settings/keys"
-    log_warning "3. Test SSH connection: ssh -T git@github.com"
-    log_warning "4. Run 'p10k configure' to customize your Powerlevel10k theme"
-    log_info "================================"
-
-    log_done "Final setup steps completed"
+main() {
+    log_step "Starting macOS Developer Environment Setup..."
+    log_info "Backup directory: $BACKUP_DIR"
     
-    log_step "A restart is recommended to ensure all changes take effect properly."
-    read -p "Would you like to restart now? (y/n): " -n 1 -r
-    echo
+    mkdir -p "$BACKUP_DIR"
+    
+    local setup_errors=0
+    
+    log_step "Checking Xcode Command Line Tools..."
+    install_xcode_cli || ((setup_errors++))
+    log_step "Cloning and setting up dotfiles..."
+    setup_dotfiles_repo || ((setup_errors++))
+    log_step "Symlinking dotfiles..."
+    symlink_dotfiles || ((setup_errors++))
+    log_step "Setting up Homebrew and packages..."
+    setup_homebrew || ((setup_errors++))
+    log_step "Configuring Oh My Zsh and Powerlevel10k..."
+    
+    log_step "Switching to dotfiles repository..."
+    cd "$DOTFILES_DIR"
+    git checkout main
+    log_step "Changing to home directory..."
+    cd "$HOME"
 
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        sudo shutdown -r now
+    setup_oh_my_zsh || ((setup_errors++))
+    log_step "Setting up SSH keys..."
+    setup_ssh_keys || ((setup_errors++))
+    log_step "Installing Python..."
+    setup_python || ((setup_errors++))
+    log_step "Installing Ruby..."
+    setup_ruby || ((setup_errors++))
+    log_step "Configuring Terminal profile..."
+    setup_terminal_profile || ((setup_errors++))
+    log_step "Applying macOS customizations..."
+    setup_macos_customizations || ((setup_errors++))
+    log_step "Finalizing setup..."
+    final_steps || ((setup_errors++))
+    
+    if [ $setup_errors -eq 0 ]; then
+        log_done "Setup completed successfully with no errors!"
     else
-        log_warning "Please restart your Mac manually when convenient."
-        log_warning "Run 'sudo shutdown -r now' to restart via terminal"
+        log_warning "Setup completed with $setup_errors function(s) having issues. Check the logs above for details."
     fi
+    
+    log_info "Please restart your terminal or run 'source ~/.zshrc' to apply changes."
 }
 
 main "$@"
