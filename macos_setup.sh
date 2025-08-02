@@ -172,11 +172,16 @@ main() {
     setup_dotfiles_repo || ((setup_errors++))
     log_step "Symlinking dotfiles..."
     symlink_dotfiles || ((setup_errors++))
-    log_step "Installing X Code..."
-    install_xcode_from_appstore || ((setup_errors++))
     log_step "Setting up Homebrew and packages..."
     setup_homebrew || ((setup_errors++))
     log_step "Configuring Oh My Zsh and Powerlevel10k..."
+    
+    log_step "Switching to dotfiles repository..."
+    cd "$DOTFILES_DIR"
+    git checkout main
+    log_step "Changing to home directory..."
+    cd "$HOME"
+
     setup_oh_my_zsh || ((setup_errors++))
     log_step "Setting up SSH keys..."
     setup_ssh_keys || ((setup_errors++))
@@ -216,74 +221,6 @@ install_xcode_cli() {
     fi
 }
 
-install_additional_apps() {
-    log_step "Installing additional applications..."
-    
-    echo
-    echo "Choose which applications to install:"
-    echo "1) All applications"
-    echo "2) Select individually"
-    echo "3) Skip additional apps"
-    echo
-    read -p "Enter your choice (1-3): " -n 1 -r
-    echo
-    
-    case $REPLY in
-        1)
-            install_xcode_from_appstore
-            install_brave_browser
-            install_android_studio
-            install_notion
-            ;;
-        2)
-            select_individual_apps
-            ;;
-        3)
-            log_info "Skipping additional applications"
-            return 0
-            ;;
-        *)
-            log_warning "Invalid choice. Skipping additional applications..."
-            ;;
-    esac
-}
-
-install_xcode_from_appstore() {
-    log_step "Installing Xcode from App Store..."
-
-    if [ -d "/Applications/Xcode.app" ]; then
-        log_done "Xcode is already installed"
-        return 0
-    fi
-    
-    if ! mas account >/dev/null 2>&1; then
-        log_warning "Not signed in to App Store. Manual installation required:"
-        log_info "1. Open App Store"
-        log_info "2. Sign in with your Apple ID"
-        log_info "3. Search for 'Xcode' and install it"
-        log_info "Note: Xcode is a large download (~15GB) and may take time"
-        return 1
-    fi
-    
-    log_info "Installing Xcode via App Store (this may take a while)..."
-    log_warning "Xcode is ~15GB and may take 30+ minutes depending on your connection"
-    
-    mas install 497799835
-    
-    if [ $? -eq 0 ]; then
-        log_done "Xcode installed successfully"
-        
-        log_info "Accepting Xcode license..."
-        sudo xcodebuild -license accept
-        
-        log_info "Installing additional Xcode components..."
-        sudo xcodebuild -runFirstLaunch
-        
-        log_done "Xcode setup completed"
-    else
-        log_error "Failed to install Xcode from App Store"
-    fi
-}
 
 setup_dotfiles_repo() {
     log_step "Setting up dotfiles repository..."
@@ -369,6 +306,29 @@ setup_homebrew() {
             fi
         done
     fi
+
+    log_step "Accepting Xcode license..."
+    if ! sudo xcodebuild -checkFirstLaunchStatus &>/dev/null; then
+        log_info "Xcode license not accepted. Accepting now..."
+        sudo xcodebuild -license accept || log_warning "Failed to accept Xcode license"
+    else
+        log_done "Xcode license already accepted"
+    fi
+
+    log_info "Running brew cleanup..."
+    brew cleanup --prune=all || log_warning "Failed to clean up Homebrew"
+    log_done "Homebrew setup completed"
+
+    log_info "Checking for Homebrew services..."
+    if command_exists brew services; then
+        log_step "Starting essential services..."
+        brew services start postgresql@15 || log_warning "Failed to start PostgreSQL service"
+        log_done "Essential services started"
+    else
+        log_warning "brew services not found, skipping service management"
+    fi  
+
+    
 }
 
 setup_ssh_keys() {
@@ -608,9 +568,19 @@ setup_macos_customizations() {
     defaults write com.apple.dock tilesize -int 64
     defaults write com.apple.dock magnification -bool true
     defaults write com.apple.dock magnification -int 52
+    defaults write com.apple.dock showAppExposeGestureEnabled -bool true
+    defaults -currentHost write NSGlobalDomain com.apple.trackpad.threeFingerVertSwipeGesture -int 2
+
     killall Dock
-    
     log_done "Dock configured"
+
+    log_info "Applying System Settings..."
+    defaults write com.apple.AppleMultitouchTrackpad Clicking -bool true
+    defaults write com.apple.driver.AppleBluetoothMultitouch.trackpad Clicking -bool true
+    sudo defaults -currentHost write NSGlobalDomain com.apple.mouse.tapBehavior -int 1
+    sudo defaults write NSGlobalDomain com.apple.mouse.tapBehavior -int 1    
+    
+    log_done "System Settings applied"
     
     log_info "Setting up screenshot folder..."
     mkdir -p ~/Pictures/Screenshots
@@ -628,7 +598,6 @@ setup_terminal_profile() {
 
     if [ -f "$profile_file" ]; then
         log_info "Importing Terminal profile..."
-        open "$profile_file"
         sleep 2
 
         log_info "Setting Terminal profile as default..."
@@ -672,6 +641,17 @@ final_steps() {
     log_info "================================"
 
     log_done "Final setup steps completed"
+    
+    log_step "A restart is recommended to ensure all changes take effect properly."
+    read -p "Would you like to restart now? (y/n): " -n 1 -r
+    echo
+
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        sudo shutdown -r now
+    else
+        log_warning "Please restart your Mac manually when convenient."
+        log_step "Run 'sudo shutdown -r now' to restart via terminal"
+    fi
 }
 
 main "$@"

@@ -28,3 +28,5 @@ cask "vlc"
 cask "whatsapp"
 cask "coconutbattery"
 cask "font-meslo-for-powerlevel10k"
+
+mas "Xcode", id: 497799835
