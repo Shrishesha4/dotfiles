@@ -1155,7 +1155,7 @@ setup_macos_customizations() {
 
     if command_exists dockutil; then
         dockutil --remove all
-        dockutil --add /Applications/Safari.app
+        dockutil --add /System/Volumes/Preboot/Cryptexes/App/System/Applications/Safari.app
         dockutil --add /Applications/Brave\ Browser.app
         dockutil --add /System/Applications/Reminders.app
         dockutil --add /Applications/Notion.app
