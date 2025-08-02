@@ -355,19 +355,16 @@ EOF
         chmod 600 ~/.ssh/config
     fi
 
-    # Add to SSH agent
     log_info "Adding SSH key to agent..."
     eval "$(ssh-agent -s)"
     ssh-add --apple-use-keychain ~/.ssh/id_ed25519 2>/dev/null || ssh-add ~/.ssh/id_ed25519
 
-    # Display public key and setup instructions
     echo
     log_info "🔑 Your existing SSH public key:"
     echo "----------------------------------------"
     cat ~/.ssh/id_ed25519.pub
     echo "----------------------------------------"
     
-    # Check if key is already on GitHub
     log_info "🧪 Testing if this SSH key is already configured with GitHub..."
     if ssh -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
         local github_user=$(ssh -T git@github.com 2>&1 | grep -o "Hi [^!]*" | cut -d' ' -f2)
@@ -381,13 +378,11 @@ EOF
 }
 
 
-# Helper function for creating new SSH keys
 create_new_ssh_keys() {
     echo
     log_info "📧 Please enter your email address for the SSH key:"
     log_info "   (This should be the email associated with your GitHub account)"
     
-    # Loop until we get a valid email
     while true; do
         read -p "Email: " user_email
         
@@ -396,8 +391,7 @@ create_new_ssh_keys() {
             echo "Please enter a valid email address."
             continue
         fi
-        
-        # Basic email validation
+
         if [[ "$user_email" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
             log_success "✅ Email accepted: $user_email"
             break
@@ -409,15 +403,12 @@ create_new_ssh_keys() {
     
     log_info "🔐 Generating new ED25519 SSH key pair for: $user_email"
     
-    # Generate SSH key with user's email
     if ssh-keygen -t ed25519 -C "$user_email" -f ~/.ssh/id_ed25519 -N ""; then
         log_success "✅ SSH key pair generated successfully!"
         
-        # Set proper permissions
         chmod 600 ~/.ssh/id_ed25519
         chmod 644 ~/.ssh/id_ed25519.pub
         
-        # Create SSH config
         if [ ! -f ~/.ssh/config ]; then
             log_info "Creating SSH config..."
             cat > ~/.ssh/config << EOF
@@ -433,12 +424,10 @@ EOF
             chmod 600 ~/.ssh/config
         fi
 
-        # Add to SSH agent
         log_info "Adding new SSH key to agent..."
         eval "$(ssh-agent -s)"
         ssh-add --apple-use-keychain ~/.ssh/id_ed25519
         
-        # Display the public key
         echo
         log_info "🔑 Your new SSH public key (copy this):"
         log_info "Generated for: $user_email"
@@ -446,7 +435,6 @@ EOF
         cat ~/.ssh/id_ed25519.pub
         echo "----------------------------------------"
         
-        # Automatically copy to clipboard if pbcopy is available
         if command -v pbcopy >/dev/null 2>&1; then
             pbcopy < ~/.ssh/id_ed25519.pub
             log_success "✅ Public key copied to clipboard!"
@@ -454,7 +442,6 @@ EOF
         
         provide_github_instructions
         
-        # Offer to backup keys to dotfiles
         offer_dotfiles_backup
         
         log_done "New SSH keys created and configured successfully for $user_email"
@@ -465,7 +452,6 @@ EOF
 }
 
 
-# Helper function to provide GitHub setup instructions
 provide_github_instructions() {
     echo
     log_info "🚀 NEXT STEPS - Add your SSH key to GitHub:"
@@ -486,7 +472,6 @@ provide_github_instructions() {
     echo "   You should see: 'Hi [username]! You've successfully authenticated...'"
     echo
     
-    # Wait for user confirmation
     read -p "Press Enter when you've added the SSH key to GitHub and want to test the connection..." -r
     
     log_info "🧪 Testing SSH connection to GitHub..."
@@ -499,7 +484,6 @@ provide_github_instructions() {
 }
 
 
-# Helper function to offer backing up keys to dotfiles
 offer_dotfiles_backup() {
     echo
     read -p "🔄 Would you like to backup these SSH keys to your dotfiles repo? (y/n): " -n 1 -r
@@ -509,11 +493,9 @@ offer_dotfiles_backup() {
         if [ -d "$DOTFILES_DIR" ]; then
             log_info "Backing up SSH keys to dotfiles repository..."
             
-            # Copy keys to dotfiles (be careful with private keys!)
             cp ~/.ssh/id_ed25519 "$DOTFILES_DIR/"
             cp ~/.ssh/id_ed25519.pub "$DOTFILES_DIR/"
             
-            # Add to git (if it's a git repo)
             if [ -d "$DOTFILES_DIR/.git" ]; then
                 cd "$DOTFILES_DIR"
                 git add id_ed25519 id_ed25519.pub
@@ -540,6 +522,39 @@ offer_dotfiles_backup() {
 
 setup_ssh_keys() {
     log_step "Setting up SSH keys..."
+    
+    # Ask user if they want to set up SSH keys
+    echo
+    log_info "🔑 SSH Key Setup"
+    echo "SSH keys allow secure, password-free authentication with Git repositories (GitHub, GitLab, etc.)"
+    echo
+    echo "Options:"
+    echo "1. Set up SSH keys now (recommended for Git workflow)"
+    echo "2. Skip SSH setup (you can set up manually later)"
+    echo
+    
+    while true; do
+        read -p "Do you want to set up SSH keys? (y/n): " -n 1 -r
+        echo
+        
+        case $REPLY in
+            [Yy]*)
+                log_info "✅ Proceeding with SSH key setup..."
+                break
+                ;;
+            [Nn]*)
+                log_warning "⏭️  Skipping SSH key setup"
+                log_info "💡 You can set up SSH keys later with:"
+                log_info "   ssh-keygen -t ed25519 -C \"your_email@example.com\""
+                log_info "   ssh-add --apple-use-keychain ~/.ssh/id_ed25519"
+                log_info "   Then add the public key to GitHub: https://github.com/settings/keys"
+                return 0
+                ;;
+            *)
+                echo "Please answer y (yes) or n (no)."
+                ;;
+        esac
+    done
 
     mkdir -p ~/.ssh
     chmod 700 ~/.ssh
@@ -592,24 +607,54 @@ EOF
         if [ -f ~/.ssh/id_ed25519 ] && [ -f ~/.ssh/id_ed25519.pub ]; then
             log_info "✅ SSH keys already exist locally at ~/.ssh/id_ed25519"
             
-            # Configure existing keys
-            setup_existing_ssh_keys
+            # Ask if they want to use existing keys or create new ones
+            echo
+            while true; do
+                read -p "Use existing SSH keys? (y/n): " -n 1 -r
+                echo
+                
+                case $REPLY in
+                    [Yy]*)
+                        log_info "Using existing SSH keys..."
+                        setup_existing_ssh_keys
+                        break
+                        ;;
+                    [Nn]*)
+                        log_info "Creating new SSH keys..."
+                        # Backup existing keys first
+                        cp ~/.ssh/id_ed25519 "$BACKUP_DIR/id_ed25519.existing.backup"
+                        cp ~/.ssh/id_ed25519.pub "$BACKUP_DIR/id_ed25519.pub.existing.backup"
+                        create_new_ssh_keys
+                        break
+                        ;;
+                    *)
+                        echo "Please answer y (yes) or n (no)."
+                        ;;
+                esac
+            done
         else
             log_info "No SSH keys found locally. Creating new ones..."
-            
-            # Interactive SSH key generation
             create_new_ssh_keys
         fi
     fi
 
-    # Always set up the dotfiles repo SSH remote
+    # Always set up the dotfiles repo SSH remote if user chose to set up SSH
     if [ -d "$DOTFILES_DIR/.git" ]; then
-        log_info "Switching dotfiles repo remote to SSH..."
-        cd "$DOTFILES_DIR"
-        git remote set-url origin git@github.com:Shrishesha4/dotfiles.git
-        log_done "Dotfiles repo remote set to SSH"
+        echo
+        read -p "🔄 Switch dotfiles repository to use SSH? (y/n): " -n 1 -r
+        echo
+        
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            log_info "Switching dotfiles repo remote to SSH..."
+            cd "$DOTFILES_DIR"
+            git remote set-url origin git@github.com:Shrishesha4/dotfiles.git
+            log_done "Dotfiles repo remote set to SSH"
+        else
+            log_info "Keeping dotfiles repo on HTTPS"
+        fi
     fi
 }
+
 
 setup_python() {
     log_step "Setting up Python with pyenv..."
