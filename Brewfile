@@ -12,12 +12,12 @@ brew "postgresql@15", restart_service: :changed
 brew "pyenv"
 brew "rbenv"
 brew "scrcpy"
-brew "android-platform-tools"
 brew "wget"
 brew "yarn"
 
 cask "brave-browser"
 cask "android-studio"
+cask "android-platform-tools"
 cask "coconutbattery"
 cask "docker-desktop"
 cask "font-meslo-for-powerlevel10k"
