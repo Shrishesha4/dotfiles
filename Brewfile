@@ -16,6 +16,7 @@ brew "wget"
 brew "yarn"
 
 cask "brave-browser"
+cask "appcleaner"
 cask "android-studio"
 cask "android-platform-tools"
 cask "coconutbattery"
