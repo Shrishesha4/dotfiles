@@ -16,8 +16,10 @@
   .card { background: #1f2335; border: 1px solid #292e42; border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; }
   .toolbar { display: flex; align-items: center; gap: 10px; padding-bottom: 8px; margin-bottom: 6px; border-bottom: 1px solid #292e42; }
   .toolbar .sel-count { color: #565f89; font-size: 11px; flex: 1; }
-  .row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid #292e42; }
+  .row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid #292e42; cursor: pointer; }
   .row:last-child { border-bottom: none; }
+  .row:hover { background: #24283b; }
+  .row .actions, .row input[type=checkbox] { cursor: default; }
   .row input[type=checkbox], .toolbar input[type=checkbox] { accent-color: #7aa2f7; cursor: pointer; }
   .name { flex: 1; }
   .dot { width: 9px; height: 9px; border-radius: 50%; background: #414868; flex-shrink: 0; }
@@ -155,6 +157,11 @@ function renderSection(containerId, items, installOne, removeOne, extraBtnMaker)
   items.forEach(item => {
     const div = document.createElement('div');
     div.className = 'row';
+    div.onclick = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || e.target.closest('.actions')) return;
+      cb.checked = !cb.checked;
+      updateSelCount(container);
+    };
 
     const cb = document.createElement('input');
     cb.type = 'checkbox';
