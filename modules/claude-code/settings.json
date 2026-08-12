@@ -1,0 +1,51 @@
+{
+  "model": "sonnet",
+  "enableWorkflows": true,
+  "statusLine": {
+    "type": "command",
+    "command": "input=$(cat); ctx=$(printf '%s' \"$input\" | jq -r '.context_window.used_percentage // empty'); five=$(printf '%s' \"$input\" | jq -r '.rate_limits.five_hour.used_percentage // empty'); cache_file=\"$HOME/.claude/.statusline_account_cache\"; now=$(date +%s); age=999999; if [ -f \"$cache_file\" ]; then mtime=$(stat -f %m \"$cache_file\" 2>/dev/null || stat -c %Y \"$cache_file\" 2>/dev/null); [ -n \"$mtime\" ] && age=$((now - mtime)); fi; if [ \"$age\" -gt 300 ]; then acct=$(claude auth status 2>/dev/null | jq -r '.email // empty'); [ -n \"$acct\" ] && printf '%s' \"$acct\" > \"$cache_file\"; fi; acct=$(cat \"$cache_file\" 2>/dev/null); [ -z \"$acct\" ] && acct=\"unknown\"; ctx_str=\"Ctx: --\"; [ -n \"$ctx\" ] && ctx_str=$(printf 'Ctx: %.0f%%' \"$ctx\"); five_str=\"5h: --\"; [ -n \"$five\" ] && five_str=$(printf '5h: %.0f%%' \"$five\"); printf '%s | %s | %s' \"$acct\" \"$ctx_str\" \"$five_str\""
+  },
+  "enabledPlugins": {
+    "svelte@svelte": true,
+    "caveman@caveman": true,
+    "frontend-design@claude-plugins-official": true,
+    "feature-dev@claude-plugins-official": false,
+    "skill-creator@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": false,
+    "context7@claude-plugins-official": true,
+    "redis-development@claude-plugins-official": true,
+    "ui-designer@daymade-skills": true
+  },
+  "extraKnownMarketplaces": {
+    "svelte": {
+      "source": {
+        "source": "github",
+        "repo": "sveltejs/ai-tools"
+      }
+    },
+    "caveman": {
+      "source": {
+        "source": "github",
+        "repo": "JuliusBrussee/caveman"
+      }
+    },
+    "daymade-skills": {
+      "source": {
+        "source": "github",
+        "repo": "daymade/claude-code-skills"
+      }
+    }
+  },
+  "effortLevel": "high",
+  "askUserQuestionTimeout": "never",
+  "voice": {
+    "enabled": true,
+    "mode": "hold"
+  },
+  "skipWorkflowUsageWarning": true,
+  "theme": "dark",
+  "editorMode": "normal",
+  "switchModelsOnFlag": true,
+  "agentPushNotifEnabled": true,
+  "voiceEnabled": true
+}

@@ -1,0 +1,34 @@
+{
+  "claude-plugins-official": {
+    "source": {
+      "source": "github",
+      "repo": "anthropics/claude-plugins-official"
+    },
+    "installLocation": "/Users/aadhi/.claude/plugins/marketplaces/claude-plugins-official",
+    "lastUpdated": "2026-08-12T04:29:03.804Z"
+  },
+  "svelte": {
+    "source": {
+      "source": "github",
+      "repo": "sveltejs/ai-tools"
+    },
+    "installLocation": "/Users/aadhi/.claude/plugins/marketplaces/svelte",
+    "lastUpdated": "2026-07-17T04:19:53.106Z"
+  },
+  "caveman": {
+    "source": {
+      "source": "github",
+      "repo": "JuliusBrussee/caveman"
+    },
+    "installLocation": "/Users/aadhi/.claude/plugins/marketplaces/caveman",
+    "lastUpdated": "2026-07-04T15:27:38.176Z"
+  },
+  "daymade-skills": {
+    "source": {
+      "source": "github",
+      "repo": "daymade/claude-code-skills"
+    },
+    "installLocation": "/Users/aadhi/.claude/plugins/marketplaces/daymade-skills",
+    "lastUpdated": "2026-07-25T09:46:32.439Z"
+  }
+}

@@ -1,0 +1,70 @@
+{
+    "files.autoSave": "afterDelay",
+    "git.enableSmartCommit": true,
+    "svelte.enable-ts-plugin": true,
+    "git.confirmSync": false,
+    "git.autofetch": true,
+    "explorer.confirmDelete": false,
+    "cursor.composer.shouldChimeAfterChatFinishes": true,
+    "claudeCode.preferredLocation": "panel",
+    "diffEditor.ignoreTrimWhitespace": false,
+    "workbench.iconTheme": "flow-deep",
+    "apc.imports": [
+        "file:///Users/aadhi/.cursor/extensions/brandonkirbyson.vscode-animations-2.0.1-universal/dist/updateHandler.js"
+    ],
+    "animations.CursorAnimation": true,
+    "animations.Enabled": true,
+    "spacebox-ui.blurEffect": true,
+    "spacebox-ui.commandCenterBlur": true,
+    "terminal.integrated.mouseWheelScrollSensitivity": 3,
+    "terminal.integrated.gpuAcceleration": "on",
+    "remote.SSH.remotePlatform": {
+        "mias": "linux",
+        "servarr": "linux",
+        "servarr-relay": "linux",
+        "servarr-ts": "linux",
+        "spark": "linux"
+    },
+    "explorer.confirmPasteNative": false,
+    "diffEditor.hideUnchangedRegions.enabled": true,
+    "cursor.composer.conversationDensity": "detailed",
+    "remote.portsAttributes": {
+        "5173": {
+            "protocol": "http"
+        }
+    },
+    "explorer.confirmDragAndDrop": false,
+    "window.systemColorTheme": "auto",
+    "workbench.preferredLightColorTheme": "Monokai Dimmed",
+    "workbench.preferredHighContrastLightColorTheme": "Monokai Dimmed",
+    "workbench.preferredHighContrastColorTheme": "Monokai Dimmed",
+    "window.autoDetectColorScheme": true,
+    "workbench.colorTheme": "Monokai Dimmed",
+    "workbench.preferredDarkColorTheme": "Monokai Dimmed",
+    "editor.cursorSmoothCaretAnimation": "on",
+    "editor.smoothScrolling": true,
+    "terminal.integrated.smoothScrolling": true,
+    "workbench.reduceMotion": "off",
+    "workbench.editor.highlightModifiedTabs": true,
+    "symbols.hidesExplorerArrows": false,
+    "terminal.external.osxExec": "/Applications/Ghostty.app",
+    "terminal.integrated.enableImages": true,
+    "terminal.external.linuxExec": "/Applications/Ghostty.app",
+    "terminal.integrated.fontFamily": "JetBrainsMono NF",
+    "terminal.integrated.cursorStyle": "line",
+    "terminal.integrated.fontLigatures.enabled": true,
+    "terminal.integrated.macOptionIsMeta": true,
+    "workbench.list.smoothScrolling": true,
+    "workbench.productIconTheme": "bongocat",
+    "cursor.terminal.usePreviewBox": true,
+    "workbench.agentsWindowButton.enabled": false,
+    "cursor.cpp.enablePartialAccepts": true,
+    "tailwindCSS.lint.cssConflict": "ignore",
+    "tailwindCSS.lint.suggestCanonicalClasses": "ignore",
+    "files.watcherExclude": {
+        "**/mias-client/.svelte-kit/**": true
+    },
+    "search.exclude": {
+        "**/mias-client/.svelte-kit": true
+    }
+}

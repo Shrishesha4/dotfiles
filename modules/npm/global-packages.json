@@ -1,0 +1,33 @@
+{
+  "name": "lib",
+  "dependencies": {
+    "@anthropic-ai/claude-code": {
+      "version": "2.1.228",
+      "overridden": false
+    },
+    "@juliusbrussee/caveman-code": {
+      "version": "0.65.2",
+      "overridden": false
+    },
+    "corepack": {
+      "version": "0.34.6",
+      "overridden": false
+    },
+    "eas-cli": {
+      "version": "19.1.0",
+      "overridden": false
+    },
+    "gitnexus": {
+      "version": "1.6.5",
+      "overridden": false
+    },
+    "npm": {
+      "version": "11.12.1",
+      "overridden": false
+    },
+    "pm2": {
+      "version": "7.0.3",
+      "overridden": false
+    }
+  }
+}

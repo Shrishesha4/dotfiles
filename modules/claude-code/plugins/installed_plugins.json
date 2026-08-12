@@ -1,0 +1,91 @@
+{
+  "version": 2,
+  "plugins": {
+    "svelte@svelte": [
+      {
+        "scope": "user",
+        "installPath": "/Users/aadhi/.claude/plugins/cache/svelte/svelte/1.0.4",
+        "version": "1.0.4",
+        "installedAt": "2026-07-02T14:44:51.950Z",
+        "lastUpdated": "2026-07-02T14:44:51.950Z",
+        "gitCommitSha": "7239d7cb1326e34231b11cfd258cf6c38b4209f0"
+      }
+    ],
+    "caveman@caveman": [
+      {
+        "scope": "user",
+        "installPath": "/Users/aadhi/.claude/plugins/cache/caveman/caveman/0d95a81d35a9",
+        "version": "0d95a81d35a9",
+        "installedAt": "2026-07-04T15:27:38.414Z",
+        "lastUpdated": "2026-07-04T15:27:38.414Z",
+        "gitCommitSha": "0d95a81d35a9f2d123a5e9430d1cfc43d55f1bb0"
+      }
+    ],
+    "frontend-design@claude-plugins-official": [
+      {
+        "scope": "user",
+        "installPath": "/Users/aadhi/.claude/plugins/cache/claude-plugins-official/frontend-design/unknown",
+        "version": "unknown",
+        "installedAt": "2026-07-17T04:16:10.335Z",
+        "lastUpdated": "2026-08-12T04:29:03.833Z"
+      }
+    ],
+    "feature-dev@claude-plugins-official": [
+      {
+        "scope": "user",
+        "installPath": "/Users/aadhi/.claude/plugins/cache/claude-plugins-official/feature-dev/unknown",
+        "version": "unknown",
+        "installedAt": "2026-07-17T04:16:31.714Z",
+        "lastUpdated": "2026-08-12T04:29:03.833Z"
+      }
+    ],
+    "skill-creator@claude-plugins-official": [
+      {
+        "scope": "user",
+        "installPath": "/Users/aadhi/.claude/plugins/cache/claude-plugins-official/skill-creator/unknown",
+        "version": "unknown",
+        "installedAt": "2026-07-25T09:43:25.041Z",
+        "lastUpdated": "2026-08-12T04:29:03.836Z"
+      }
+    ],
+    "superpowers@claude-plugins-official": [
+      {
+        "scope": "user",
+        "installPath": "/Users/aadhi/.claude/plugins/cache/claude-plugins-official/superpowers/6.2.0",
+        "version": "6.2.0",
+        "installedAt": "2026-07-25T09:43:35.131Z",
+        "lastUpdated": "2026-07-25T09:43:35.131Z",
+        "gitCommitSha": "3dcbd5c4b48e02263fbf4a3c01e3fe4f81d584d9"
+      }
+    ],
+    "context7@claude-plugins-official": [
+      {
+        "scope": "user",
+        "installPath": "/Users/aadhi/.claude/plugins/cache/claude-plugins-official/context7/unknown",
+        "version": "unknown",
+        "installedAt": "2026-07-25T09:43:41.682Z",
+        "lastUpdated": "2026-08-12T04:29:03.832Z"
+      }
+    ],
+    "redis-development@claude-plugins-official": [
+      {
+        "scope": "user",
+        "installPath": "/Users/aadhi/.claude/plugins/cache/claude-plugins-official/redis-development/1.4.0",
+        "version": "1.4.0",
+        "installedAt": "2026-07-25T09:45:03.862Z",
+        "lastUpdated": "2026-08-12T04:29:08.267Z",
+        "gitCommitSha": "f04e664b5ffe7bbe50141b481d2b039f5b16d260"
+      }
+    ],
+    "ui-designer@daymade-skills": [
+      {
+        "scope": "user",
+        "installPath": "/Users/aadhi/.claude/plugins/cache/daymade-skills/ui-designer/1.0.0",
+        "version": "1.0.0",
+        "installedAt": "2026-07-25T09:48:00.895Z",
+        "lastUpdated": "2026-07-25T09:48:00.895Z",
+        "gitCommitSha": "214093d9e9f4063dc733fc9437122923a1746b41"
+      }
+    ]
+  }
+}

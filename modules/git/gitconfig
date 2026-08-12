@@ -1,0 +1,5 @@
+[user]
+	email = aadhi@vianasoft.net
+	name = Aadhi
+[core]
+	excludesFile = ~/.config/git/ignore

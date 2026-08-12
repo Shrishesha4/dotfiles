@@ -1,0 +1,140 @@
+# -----------------------------
+# General
+# -----------------------------
+add_newline = true
+
+format = """
+$directory\
+$git_branch\
+$git_status\
+$git_commit\
+$python\
+$nodejs\
+$golang\
+$rust\
+$docker_context\
+$cmd_duration\
+$line_break\
+$character
+"""
+
+# -----------------------------
+# Prompt
+# -----------------------------
+[character]
+success_symbol = "[❯](bold green)"
+error_symbol = "[❯](bold red)"
+vicmd_symbol = "[❮](bold yellow)"
+
+# -----------------------------
+# Directory
+# -----------------------------
+[directory]
+style = "bold cyan"
+truncate_to_repo = true
+truncation_length = 3
+truncation_symbol = "…/"
+read_only = " "
+
+# -----------------------------
+# Git
+# -----------------------------
+[git_branch]
+symbol = " "
+style = "bold purple"
+
+[git_commit]
+only_detached = true
+tag_disabled = false
+
+[git_status]
+style = "bold yellow"
+
+conflicted = "✖ "
+ahead = "⇡${count}"
+behind = "⇣${count}"
+diverged = "⇕⇡${ahead_count}⇣${behind_count}"
+
+untracked = "?${count}"
+stashed = "*${count}"
+modified = "!${count}"
+staged = "+${count}"
+renamed = "»${count}"
+deleted = "✘${count}"
+
+format = '([$all_status$ahead_behind]($style) )'
+
+# -----------------------------
+# Languages
+# -----------------------------
+[python]
+symbol = "🐍 "
+format = "[$symbol$version]($style) "
+detect_extensions = ["py"]
+detect_files = ["pyproject.toml", "requirements.txt"]
+
+[nodejs]
+symbol = "⬢ "
+format = "[$symbol$version]($style) "
+
+[golang]
+symbol = " "
+
+[rust]
+symbol = "🦀 "
+
+# -----------------------------
+# Docker
+# -----------------------------
+[docker_context]
+symbol = "🐳 "
+format = "[$symbol$context]($style) "
+
+# -----------------------------
+# Kubernetes
+# -----------------------------
+[kubernetes]
+disabled = false
+symbol = "☸ "
+format = '[$symbol$context( \($namespace\))]($style) '
+style = "bold blue"
+
+# -----------------------------
+# AWS
+# -----------------------------
+[aws]
+symbol = "☁️ "
+format = '[$symbol$profile]($style) '
+style = "bold yellow"
+
+# -----------------------------
+# Command Duration
+# -----------------------------
+[cmd_duration]
+min_time = 1000
+format = "⏱ [$duration]($style) "
+style = "bold dimmed"
+
+# -----------------------------
+# Time (disabled by default)
+# -----------------------------
+[time]
+disabled = true
+
+# -----------------------------
+# Battery
+# -----------------------------
+[battery]
+disabled = true
+
+# -----------------------------
+# Package Version
+# -----------------------------
+[package]
+disabled = false
+
+# -----------------------------
+# Memory
+# -----------------------------
+[memory_usage]
+disabled = true
