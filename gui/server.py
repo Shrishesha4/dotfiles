@@ -15,6 +15,24 @@ HOME = Path.home()
 PORT = 4444
 TOKEN = secrets.token_hex(16)
 
+# Build a PATH that covers Homebrew (Apple Silicon + Intel), npm global bin,
+# user-local bins, and standard system paths. launchd-launched processes inherit
+# a minimal PATH that lacks /opt/homebrew/bin, which breaks brew/npm commands.
+_EXTRA_PATHS = [
+    "/opt/homebrew/bin", "/opt/homebrew/sbin",
+    "/usr/local/bin", "/usr/local/sbin",
+    f"{HOME}/.npm-global/bin", f"{HOME}/.npm/bin", f"{HOME}/npm/bin",
+    f"{HOME}/.local/bin", f"{HOME}/bin",
+    "/usr/bin", "/bin", "/usr/sbin", "/sbin",
+]
+_BASE_PATH = os.environ.get("PATH", "")
+_ENV_PATH = ":".join([p for p in _EXTRA_PATHS if os.path.isdir(p)] + [_BASE_PATH])
+
+
+def shell_env():
+    """Return env dict with extended PATH for subprocess calls."""
+    return dict(os.environ, PATH=_ENV_PATH)
+
 # name-safe pattern for anything passed to a subprocess as a package/extension name
 SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.@/-]*$")
 
@@ -45,6 +63,8 @@ MODULE_TARGETS = {
 
 
 def run(cmd, cwd=None, env=None, timeout=180):
+    if env is None:
+        env = shell_env()
     try:
         p = subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True, timeout=timeout)
         return {"ok": p.returncode == 0, "code": p.returncode, "stdout": p.stdout, "stderr": p.stderr}
