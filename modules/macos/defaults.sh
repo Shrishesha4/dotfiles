@@ -1,24 +1,39 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# No `set -e`: individual defaults writes are best-effort. A single failing
+# command (sudo auth issue, missing app, etc.) must not abort the rest.
+set -o pipefail
 
 # macOS system defaults.
 # All commands are opt-out-safe: any line starting with '# SKIP:' is skipped.
 # Comment/uncomment to control what applies per-machine.
-# Some commands need sudo; they are guarded with run_sudo() and skip if not available.
+# Some commands need sudo; they are guarded with run_sudo() and skip silently
+# if sudo is unavailable or the user declines the password prompt.
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-SUDO_ASKED=0
+SUDO_OK=0
+SUDO_TRIED=0
 ask_sudo_once() {
-  if [ "$SUDO_ASKED" -eq 0 ] && command -v sudo >/dev/null 2>&1; then
-    sudo -v
-    SUDO_ASKED=1
+  [ "$SUDO_TRIED" -eq 1 ] && return 0
+  SUDO_TRIED=1
+  if ! command -v sudo >/dev/null 2>&1; then
+    echo "[skip sudo] sudo not available"
+    return 0
   fi
+  if sudo -v; then
+    SUDO_OK=1
+  else
+    echo "[skip sudo] auth failed — sudo-required settings will be skipped"
+  fi
+  return 0
 }
 run_sudo() {
-  ask_sudo_once
-  sudo "$@"
+  if [ "$SUDO_OK" -eq 1 ]; then
+    sudo "$@" || echo "[sudo fail] $*"
+  fi
 }
+
+echo "==> Applying macOS defaults..."
 
 # --- Dock ---------------------------------------------------------------------
 defaults write com.apple.dock autohide -bool true
@@ -83,7 +98,7 @@ defaults write com.apple.AppleMultitouchTrackpad USBMouseStopsTrackpad -bool fal
 # --- Default apps -------------------------------------------------------------
 # Open .command / .sh / unix executables in Ghostty. Using dutti avoids corrupting the launchservices plist.
 if command -v duti >/dev/null 2>&1; then
-  duti -s com.mitchellh.ghostty public.unix-executable all
+  duti -s com.mitchellh.ghostty public.unix-executable all 2>/dev/null || true
 elif command -v brew >/dev/null 2>&1; then
   echo "Install duti to set Ghostty as default terminal: brew install duti"
 fi
