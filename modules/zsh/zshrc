@@ -1,5 +1,5 @@
 # The following lines have been added by Docker Desktop to enable Docker CLI completions.
-fpath=(/Users/aadhi/.docker/completions $fpath)
+fpath=($HOME/.docker/completions $fpath)
 autoload -Uz compinit
 compinit
 # End of Docker CLI completions
@@ -8,7 +8,7 @@ export PATH="$HOME/.local/bin:$PATH"
 export EDITOR="cursor --wait"
 
 # bun completions
-[ -s "/Users/aadhi/.bun/_bun" ] && source "/Users/aadhi/.bun/_bun"
+[ -s "$HOME/.bun/_bun" ] && source "$HOME/.bun/_bun"
 
 alias term="zellij --layout backend"
 
@@ -60,14 +60,14 @@ alias rz="source ~/.zshrc"
 alias df="duf"
 
 # Added by Antigravity CLI installer
-export PATH="/Users/aadhi/.local/bin:$PATH"
+export PATH="$HOME/.local/bin:$PATH"
 
 # Added by LM Studio CLI (lms)
-export PATH="$PATH:/Users/aadhi/.lmstudio/bin"
+export PATH="$PATH:$HOME/.lmstudio/bin"
 # End of LM Studio CLI section
 
 # opencode
-export PATH=/Users/aadhi/.opencode/bin:$PATH
+export PATH="$HOME/.opencode/bin:$PATH"
 
 eval "$(starship init zsh)"
 
@@ -76,7 +76,7 @@ export PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH"
 export JAVA_HOME="/opt/homebrew/opt/openjdk@21"
 
 # Added by Antigravity IDE
-export PATH="/Users/aadhi/.antigravity-ide/antigravity-ide/bin:$PATH"
+export PATH="$HOME/.antigravity-ide/antigravity-ide/bin:$PATH"
 
 # Machine-local overrides / secrets (see ~/.zshrc.local, gitignored)
 [ -f "$HOME/.zshrc.local" ] && source "$HOME/.zshrc.local"
