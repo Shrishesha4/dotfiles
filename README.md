@@ -27,4 +27,19 @@ Pick modules in the `gum` checkbox menu, then `source ~/.zshrc`.
 
 ## Refreshing manifests
 
-Run `scripts/generate-manifests.sh` after installing new brew packages / VSCode extensions / npm globals, then review and commit.
+Run `scripts/generate-manifests.sh` after installing new brew packages / VSCode extensions / npm globals, then review the diff (`git diff`) and commit + push.
+
+## Syncing one new install to the other machine
+
+Config modules (zsh, git, ghostty, starship, claude-code, cursor, agents-skills) are symlinked — once a module is installed on a machine, `git pull` alone is enough to pick up edits. No action needed.
+
+Actual installs (brew, npm globals, VSCode extensions) need a real install step. On the machine where you added something new:
+```
+scripts/generate-manifests.sh
+git add -A && git commit -m "add <thing>" && git push
+```
+On the other machine:
+```
+scripts/sync-pull.sh
+```
+It pulls, diffs against your last local commit, and shows **only what's new** (not the full package list) — offering to install just that delta for brew/npm/VSCode.
