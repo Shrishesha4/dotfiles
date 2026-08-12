@@ -44,9 +44,9 @@ MODULE_TARGETS = {
 }
 
 
-def run(cmd, cwd=None, timeout=180):
+def run(cmd, cwd=None, env=None, timeout=180):
     try:
-        p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+        p = subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True, timeout=timeout)
         return {"ok": p.returncode == 0, "code": p.returncode, "stdout": p.stdout, "stderr": p.stderr}
     except FileNotFoundError as e:
         return {"ok": False, "code": -1, "stdout": "", "stderr": f"not found: {e}"}
@@ -230,7 +230,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json({"error": "unknown module"}, 400)
                 return
             env = dict(os.environ, DOTFILES_DIR=str(DOTFILES_DIR))
-            r = run(["bash", str(DOTFILES_DIR / "modules" / name / "install.sh")], cwd=str(DOTFILES_DIR))
+            r = run(["bash", str(DOTFILES_DIR / "modules" / name / "install.sh")], cwd=str(DOTFILES_DIR), env=env)
             self._send_json(r)
             return
 
@@ -311,7 +311,7 @@ class Handler(BaseHTTPRequestHandler):
             env = dict(os.environ, DOTFILES_DIR=str(DOTFILES_DIR))
             for name in MODULE_TARGETS:
                 if module_installed(name):
-                    results[name] = run(["bash", str(DOTFILES_DIR / "modules" / name / "install.sh")], cwd=str(DOTFILES_DIR))
+                    results[name] = run(["bash", str(DOTFILES_DIR / "modules" / name / "install.sh")], cwd=str(DOTFILES_DIR), env=env)
             self._send_json({"ok": True, "results": results})
             return
 

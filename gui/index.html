@@ -14,8 +14,11 @@
   h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: #7dcfff; margin: 28px 0 10px; }
   .sub { color: #565f89; font-size: 12px; margin-bottom: 24px; }
   .card { background: #1f2335; border: 1px solid #292e42; border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; }
+  .toolbar { display: flex; align-items: center; gap: 10px; padding-bottom: 8px; margin-bottom: 6px; border-bottom: 1px solid #292e42; }
+  .toolbar .sel-count { color: #565f89; font-size: 11px; flex: 1; }
   .row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid #292e42; }
   .row:last-child { border-bottom: none; }
+  .row input[type=checkbox], .toolbar input[type=checkbox] { accent-color: #7aa2f7; cursor: pointer; }
   .name { flex: 1; }
   .dot { width: 9px; height: 9px; border-radius: 50%; background: #414868; flex-shrink: 0; }
   .dot.on { background: #9ece6a; }
@@ -30,7 +33,6 @@
   button.primary:hover { background: #89b4fa; }
   button:disabled { opacity: .4; cursor: default; }
   .actions { display: flex; gap: 6px; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
   .gitbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .gitbar .status { flex: 1; min-width: 240px; color: #565f89; font-size: 12px; }
   #log {
@@ -90,6 +92,7 @@
 
 <script>
 const TOKEN = "__TOKEN__";
+let STATE = null;
 
 function log(msg, cls) {
   const el = document.getElementById('log');
@@ -112,38 +115,99 @@ async function api(path, body) {
   return data;
 }
 
-function row(name, installed, onInstall, onRemove, extraBtns) {
-  const div = document.createElement('div');
-  div.className = 'row';
-  div.innerHTML = `<span class="dot ${installed ? 'on' : 'off'}"></span><span class="name">${name}</span>`;
-  const actions = document.createElement('div');
-  actions.className = 'actions';
-  if (extraBtns) extraBtns.forEach(b => actions.appendChild(b));
-  if (installed) {
-    if (onRemove) {
-      const b = document.createElement('button');
-      b.className = 'danger'; b.textContent = 'Remove';
-      b.onclick = onRemove;
-      actions.appendChild(b);
-    }
-  } else {
-    const b = document.createElement('button');
-    b.textContent = 'Install';
-    b.onclick = onInstall;
-    actions.appendChild(b);
-  }
-  div.appendChild(actions);
-  return div;
-}
-
 async function withSpin(el, fn) {
   el.classList.add('spin');
   try { await fn(); } finally { el.classList.remove('spin'); await refresh(); }
 }
 
+function updateSelCount(container) {
+  const n = container.querySelectorAll('.sel:checked').length;
+  const span = container.querySelector('.sel-count');
+  if (span) span.textContent = n ? n + ' selected' : '';
+}
+
+// items: [{name, installed}]. installOne/removeOne(name) -> Promise<result>. extraBtnMaker(name) -> HTMLElement|null.
+function renderSection(containerId, items, installOne, removeOne, extraBtnMaker) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = '';
+
+  const toolbar = document.createElement('div');
+  toolbar.className = 'toolbar';
+  const selectAll = document.createElement('input');
+  selectAll.type = 'checkbox';
+  selectAll.title = 'select all';
+  selectAll.onchange = () => {
+    container.querySelectorAll('.sel').forEach(cb => cb.checked = selectAll.checked);
+    updateSelCount(container);
+  };
+  const selCount = document.createElement('span');
+  selCount.className = 'sel-count';
+  const bInstall = document.createElement('button');
+  bInstall.textContent = 'Install Selected';
+  bInstall.onclick = () => bulkAction(container, items, installOne, false);
+  const bRemove = document.createElement('button');
+  bRemove.className = 'danger';
+  bRemove.textContent = 'Remove Selected';
+  bRemove.onclick = () => bulkAction(container, items, removeOne, true);
+  toolbar.append(selectAll, selCount, bInstall, bRemove);
+  container.appendChild(toolbar);
+
+  items.forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'row';
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.className = 'sel';
+    cb.dataset.name = item.name;
+    cb.onchange = () => updateSelCount(container);
+
+    const dot = document.createElement('span');
+    dot.className = 'dot ' + (item.installed ? 'on' : 'off');
+
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = item.name;
+
+    const actions = document.createElement('div');
+    actions.className = 'actions';
+    const extra = extraBtnMaker ? extraBtnMaker(item.name) : null;
+    if (extra) actions.appendChild(extra);
+    if (item.installed) {
+      const b = document.createElement('button');
+      b.className = 'danger'; b.textContent = 'Remove';
+      b.onclick = () => withSpin(container, () => removeOne(item.name).then(r => log(item.name + ': ' + (r.ok ? 'removed' : (r.error || r.stderr || 'failed')), r.ok ? 'ok' : 'err')));
+      actions.appendChild(b);
+    } else {
+      const b = document.createElement('button');
+      b.textContent = 'Install';
+      b.onclick = () => withSpin(container, () => installOne(item.name).then(r => log(item.name + ': ' + (r.ok ? 'installed' : (r.error || r.stderr || 'failed')), r.ok ? 'ok' : 'err')));
+      actions.appendChild(b);
+    }
+
+    div.append(cb, dot, name, actions);
+    container.appendChild(div);
+  });
+}
+
+async function bulkAction(container, items, actionFn, onlyIfInstalled) {
+  const checked = [...container.querySelectorAll('.sel:checked')].map(cb => cb.dataset.name);
+  if (!checked.length) { log('nothing selected'); return; }
+  await withSpin(container, async () => {
+    for (const name of checked) {
+      const item = items.find(i => i.name === name);
+      if (!item) continue;
+      if (onlyIfInstalled !== (item.installed === true)) continue; // skip items already in target state
+      const r = await actionFn(name);
+      log(name + ': ' + (r.ok ? 'ok' : (r.error || r.stderr || 'failed')), r.ok ? 'ok' : 'err');
+    }
+  });
+}
+
 async function refresh() {
   const state = await api('/api/state');
   if (state.error) return;
+  STATE = state;
 
   document.getElementById('subtitle').textContent =
     Object.values(state.modules).filter(Boolean).length + '/' + Object.keys(state.modules).length + ' modules linked' +
@@ -152,47 +216,37 @@ async function refresh() {
   document.getElementById('git-status').textContent =
     `${state.git.branch} · ${state.git.status_line} · ${state.git.dirty ? state.git.changed_files.length + ' uncommitted' : 'clean'} · ${state.git.last_commit}`;
 
-  const modules = document.getElementById('modules');
-  modules.innerHTML = '';
-  for (const [name, installed] of Object.entries(state.modules)) {
-    const resetBtn = document.createElement('button');
-    resetBtn.textContent = 'Reset';
-    resetBtn.onclick = () => withSpin(modules, () => api('/api/module/reset', { name }).then(r => log(name + ' reset: ' + (r.ok ? 'ok' : 'failed'), r.ok ? 'ok' : 'err')));
-    modules.appendChild(row(
-      name, installed,
-      () => withSpin(modules, () => api('/api/module/install', { name }).then(r => log(name + ' install: ' + (r.ok ? 'ok' : 'failed'), r.ok ? 'ok' : 'err'))),
-      () => withSpin(modules, () => api('/api/module/remove', { name }).then(r => log(name + ' removed', 'ok'))),
-      installed ? [resetBtn] : []
-    ));
-  }
+  const moduleItems = Object.entries(state.modules).map(([name, installed]) => ({ name, installed }));
+  renderSection('modules', moduleItems,
+    name => api('/api/module/install', { name }),
+    name => api('/api/module/remove', { name }),
+    name => {
+      const b = document.createElement('button');
+      b.textContent = 'Reset';
+      b.onclick = () => withSpin(document.getElementById('modules'), () => api('/api/module/reset', { name }).then(r => log(name + ' reset: ' + (r.ok ? 'ok' : 'failed'), r.ok ? 'ok' : 'err')));
+      return b;
+    }
+  );
 
-  const bf = document.getElementById('brew-formulae');
-  bf.innerHTML = '';
-  state.brew.formulae.forEach(p => bf.appendChild(row(p.name, p.installed,
-    () => withSpin(bf, () => api('/api/brew/install', { name: p.name, type: 'formula' }).then(r => log('brew install ' + p.name + ': ' + (r.ok ? 'ok' : r.stderr), r.ok ? 'ok' : 'err'))),
-    () => withSpin(bf, () => api('/api/brew/remove', { name: p.name, type: 'formula' }).then(r => log('brew uninstall ' + p.name + ': ' + (r.ok ? 'ok' : r.stderr), r.ok ? 'ok' : 'err')))
-  )));
+  renderSection('brew-formulae', state.brew.formulae,
+    name => api('/api/brew/install', { name, type: 'formula' }),
+    name => api('/api/brew/remove', { name, type: 'formula' })
+  );
 
-  const bc = document.getElementById('brew-casks');
-  bc.innerHTML = '';
-  state.brew.casks.forEach(p => bc.appendChild(row(p.name, p.installed,
-    () => withSpin(bc, () => api('/api/brew/install', { name: p.name, type: 'cask' }).then(r => log('cask install ' + p.name + ': ' + (r.ok ? 'ok' : r.stderr), r.ok ? 'ok' : 'err'))),
-    () => withSpin(bc, () => api('/api/brew/remove', { name: p.name, type: 'cask' }).then(r => log('cask uninstall ' + p.name + ': ' + (r.ok ? 'ok' : r.stderr), r.ok ? 'ok' : 'err')))
-  )));
+  renderSection('brew-casks', state.brew.casks,
+    name => api('/api/brew/install', { name, type: 'cask' }),
+    name => api('/api/brew/remove', { name, type: 'cask' })
+  );
 
-  const npm = document.getElementById('npm');
-  npm.innerHTML = '';
-  state.npm.forEach(p => npm.appendChild(row(p.name, p.installed,
-    () => withSpin(npm, () => api('/api/npm/install', { name: p.name }).then(r => log('npm install -g ' + p.name + ': ' + (r.ok ? 'ok' : r.stderr), r.ok ? 'ok' : 'err'))),
-    () => withSpin(npm, () => api('/api/npm/remove', { name: p.name }).then(r => log('npm uninstall -g ' + p.name + ': ' + (r.ok ? 'ok' : r.stderr), r.ok ? 'ok' : 'err')))
-  )));
+  renderSection('npm', state.npm,
+    name => api('/api/npm/install', { name }),
+    name => api('/api/npm/remove', { name })
+  );
 
-  const vs = document.getElementById('vscode');
-  vs.innerHTML = '';
-  state.vscode.forEach(p => vs.appendChild(row(p.name, p.installed,
-    () => withSpin(vs, () => api('/api/vscode/install', { name: p.name }).then(r => log('code --install-extension ' + p.name + ': ' + (r.ok ? 'ok' : r.stderr), r.ok ? 'ok' : 'err'))),
-    () => withSpin(vs, () => api('/api/vscode/remove', { name: p.name }).then(r => log('code --uninstall-extension ' + p.name + ': ' + (r.ok ? 'ok' : r.stderr), r.ok ? 'ok' : 'err')))
-  )));
+  renderSection('vscode', state.vscode,
+    name => api('/api/vscode/install', { name }),
+    name => api('/api/vscode/remove', { name })
+  );
 }
 
 async function doGitPull() {
