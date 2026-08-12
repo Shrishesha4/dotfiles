@@ -77,6 +77,12 @@ brew "tree-sitter"
 brew "wget"
 # Feature-rich command-line audio/video downloader
 brew "yt-dlp"
+# Fish-like fast/unobtrusive autosuggestions for zsh
+brew "zsh-autosuggestions"
+# Additional completion definitions for zsh
+brew "zsh-completions"
+# Fish-like syntax highlighting for zsh
+brew "zsh-syntax-highlighting"
 # Shell extension to navigate your filesystem faster
 brew "zoxide"
 # Terraform
