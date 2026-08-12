@@ -95,6 +95,8 @@ cask "appcleaner"
 cask "bettershot"
 # Web browser focusing on privacy
 cask "brave-browser"
+# AI-powered code editor
+cask "cursor"
 # OpenAI's coding agent that runs in your terminal
 cask "codex"
 # App to build and share containerised applications and microservices
