@@ -1,0 +1,240 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>dotfiles</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    background: #1a1b26; color: #c0caf5; font: 14px/1.4 -apple-system, "SF Mono", monospace;
+    margin: 0; padding: 24px 32px 80px;
+  }
+  h1 { font-size: 18px; margin: 0 0 4px; color: #7aa2f7; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: #7dcfff; margin: 28px 0 10px; }
+  .sub { color: #565f89; font-size: 12px; margin-bottom: 24px; }
+  .card { background: #1f2335; border: 1px solid #292e42; border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; }
+  .row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid #292e42; }
+  .row:last-child { border-bottom: none; }
+  .name { flex: 1; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #414868; flex-shrink: 0; }
+  .dot.on { background: #9ece6a; }
+  .dot.off { background: #565f89; }
+  button {
+    background: #292e42; color: #c0caf5; border: 1px solid #414868; border-radius: 5px;
+    padding: 4px 10px; font-size: 12px; cursor: pointer; font-family: inherit;
+  }
+  button:hover { background: #3b4261; }
+  button.danger:hover { background: #f7768e; color: #1a1b26; }
+  button.primary { background: #7aa2f7; color: #1a1b26; border-color: #7aa2f7; }
+  button.primary:hover { background: #89b4fa; }
+  button:disabled { opacity: .4; cursor: default; }
+  .actions { display: flex; gap: 6px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+  .gitbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .gitbar .status { flex: 1; min-width: 240px; color: #565f89; font-size: 12px; }
+  #log {
+    position: fixed; bottom: 0; left: 0; right: 0; max-height: 160px; overflow-y: auto;
+    background: #16161e; border-top: 1px solid #292e42; padding: 8px 16px; font-size: 11px;
+    color: #565f89; white-space: pre-wrap;
+  }
+  #log .line { margin: 2px 0; }
+  #log .err { color: #f7768e; }
+  #log .ok { color: #9ece6a; }
+  dialog { background: #1f2335; color: #c0caf5; border: 1px solid #414868; border-radius: 8px; padding: 16px; }
+  dialog input { width: 320px; background: #16161e; border: 1px solid #414868; color: #c0caf5; padding: 6px; border-radius: 4px; }
+  .spin { opacity: .5; pointer-events: none; }
+</style>
+</head>
+<body>
+  <h1>dotfiles</h1>
+  <div class="sub" id="subtitle">loading…</div>
+
+  <h2>Git</h2>
+  <div class="card gitbar">
+    <div class="status" id="git-status">—</div>
+    <div class="actions">
+      <button onclick="doGitPull()">Pull</button>
+      <button onclick="doGitSync()">Sync</button>
+      <button onclick="openPushDialog()" class="primary">Push</button>
+      <button onclick="doResetAll()" class="danger">Reset All (re-link)</button>
+      <button onclick="refresh()">↻ Refresh</button>
+    </div>
+  </div>
+
+  <h2>Config Modules</h2>
+  <div class="card" id="modules"></div>
+
+  <h2>Homebrew — Formulae</h2>
+  <div class="card" id="brew-formulae"></div>
+
+  <h2>Homebrew — Casks</h2>
+  <div class="card" id="brew-casks"></div>
+
+  <h2>npm Globals</h2>
+  <div class="card" id="npm"></div>
+
+  <h2>VSCode Extensions</h2>
+  <div class="card" id="vscode"></div>
+
+  <dialog id="push-dialog">
+    <div style="margin-bottom:8px">Commit message</div>
+    <input id="push-msg" placeholder="what changed?" autofocus>
+    <div style="margin-top:12px; display:flex; gap:8px; justify-content:flex-end">
+      <button onclick="document.getElementById('push-dialog').close()">Cancel</button>
+      <button class="primary" onclick="doGitPush()">Commit + Push</button>
+    </div>
+  </dialog>
+
+  <div id="log"></div>
+
+<script>
+const TOKEN = "__TOKEN__";
+
+function log(msg, cls) {
+  const el = document.getElementById('log');
+  const line = document.createElement('div');
+  line.className = 'line' + (cls ? ' ' + cls : '');
+  line.textContent = msg;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+async function api(path, body) {
+  const opts = { method: body ? 'POST' : 'GET', headers: { 'X-Dot-Token': TOKEN } };
+  if (body) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
+  const res = await fetch(path, opts);
+  const data = await res.json();
+  if (!res.ok) log((data.error || 'error') + ' — ' + path, 'err');
+  return data;
+}
+
+function row(name, installed, onInstall, onRemove, extraBtns) {
+  const div = document.createElement('div');
+  div.className = 'row';
+  div.innerHTML = `<span class="dot ${installed ? 'on' : 'off'}"></span><span class="name">${name}</span>`;
+  const actions = document.createElement('div');
+  actions.className = 'actions';
+  if (extraBtns) extraBtns.forEach(b => actions.appendChild(b));
+  if (installed) {
+    if (onRemove) {
+      const b = document.createElement('button');
+      b.className = 'danger'; b.textContent = 'Remove';
+      b.onclick = onRemove;
+      actions.appendChild(b);
+    }
+  } else {
+    const b = document.createElement('button');
+    b.textContent = 'Install';
+    b.onclick = onInstall;
+    actions.appendChild(b);
+  }
+  div.appendChild(actions);
+  return div;
+}
+
+async function withSpin(el, fn) {
+  el.classList.add('spin');
+  try { await fn(); } finally { el.classList.remove('spin'); await refresh(); }
+}
+
+async function refresh() {
+  const state = await api('/api/state');
+  if (state.error) return;
+
+  document.getElementById('subtitle').textContent =
+    Object.values(state.modules).filter(Boolean).length + '/' + Object.keys(state.modules).length + ' modules linked' +
+    ' · autostart at login: ' + (state.gui_autostart ? 'on' : 'off — run gui module to enable');
+
+  document.getElementById('git-status').textContent =
+    `${state.git.branch} · ${state.git.status_line} · ${state.git.dirty ? state.git.changed_files.length + ' uncommitted' : 'clean'} · ${state.git.last_commit}`;
+
+  const modules = document.getElementById('modules');
+  modules.innerHTML = '';
+  for (const [name, installed] of Object.entries(state.modules)) {
+    const resetBtn = document.createElement('button');
+    resetBtn.textContent = 'Reset';
+    resetBtn.onclick = () => withSpin(modules, () => api('/api/module/reset', { name }).then(r => log(name + ' reset: ' + (r.ok ? 'ok' : 'failed'), r.ok ? 'ok' : 'err')));
+    modules.appendChild(row(
+      name, installed,
+      () => withSpin(modules, () => api('/api/module/install', { name }).then(r => log(name + ' install: ' + (r.ok ? 'ok' : 'failed'), r.ok ? 'ok' : 'err'))),
+      () => withSpin(modules, () => api('/api/module/remove', { name }).then(r => log(name + ' removed', 'ok'))),
+      installed ? [resetBtn] : []
+    ));
+  }
+
+  const bf = document.getElementById('brew-formulae');
+  bf.innerHTML = '';
+  state.brew.formulae.forEach(p => bf.appendChild(row(p.name, p.installed,
+    () => withSpin(bf, () => api('/api/brew/install', { name: p.name, type: 'formula' }).then(r => log('brew install ' + p.name + ': ' + (r.ok ? 'ok' : r.stderr), r.ok ? 'ok' : 'err'))),
+    () => withSpin(bf, () => api('/api/brew/remove', { name: p.name, type: 'formula' }).then(r => log('brew uninstall ' + p.name + ': ' + (r.ok ? 'ok' : r.stderr), r.ok ? 'ok' : 'err')))
+  )));
+
+  const bc = document.getElementById('brew-casks');
+  bc.innerHTML = '';
+  state.brew.casks.forEach(p => bc.appendChild(row(p.name, p.installed,
+    () => withSpin(bc, () => api('/api/brew/install', { name: p.name, type: 'cask' }).then(r => log('cask install ' + p.name + ': ' + (r.ok ? 'ok' : r.stderr), r.ok ? 'ok' : 'err'))),
+    () => withSpin(bc, () => api('/api/brew/remove', { name: p.name, type: 'cask' }).then(r => log('cask uninstall ' + p.name + ': ' + (r.ok ? 'ok' : r.stderr), r.ok ? 'ok' : 'err')))
+  )));
+
+  const npm = document.getElementById('npm');
+  npm.innerHTML = '';
+  state.npm.forEach(p => npm.appendChild(row(p.name, p.installed,
+    () => withSpin(npm, () => api('/api/npm/install', { name: p.name }).then(r => log('npm install -g ' + p.name + ': ' + (r.ok ? 'ok' : r.stderr), r.ok ? 'ok' : 'err'))),
+    () => withSpin(npm, () => api('/api/npm/remove', { name: p.name }).then(r => log('npm uninstall -g ' + p.name + ': ' + (r.ok ? 'ok' : r.stderr), r.ok ? 'ok' : 'err')))
+  )));
+
+  const vs = document.getElementById('vscode');
+  vs.innerHTML = '';
+  state.vscode.forEach(p => vs.appendChild(row(p.name, p.installed,
+    () => withSpin(vs, () => api('/api/vscode/install', { name: p.name }).then(r => log('code --install-extension ' + p.name + ': ' + (r.ok ? 'ok' : r.stderr), r.ok ? 'ok' : 'err'))),
+    () => withSpin(vs, () => api('/api/vscode/remove', { name: p.name }).then(r => log('code --uninstall-extension ' + p.name + ': ' + (r.ok ? 'ok' : r.stderr), r.ok ? 'ok' : 'err')))
+  )));
+}
+
+async function doGitPull() {
+  log('git pull…');
+  const r = await api('/api/git/pull');
+  log(r.ok ? r.stdout.trim() || 'up to date' : r.stderr, r.ok ? 'ok' : 'err');
+  await refresh();
+}
+
+async function doGitSync() {
+  log('sync: refreshing manifests + pull…');
+  const r = await api('/api/git/sync');
+  log('manifests: ' + (r.generate.ok ? 'refreshed' : r.generate.stderr), r.generate.ok ? 'ok' : 'err');
+  log('pull: ' + (r.pull.ok ? (r.pull.stdout.trim() || 'up to date') : r.pull.stderr), r.pull.ok ? 'ok' : 'err');
+  await refresh();
+}
+
+function openPushDialog() {
+  document.getElementById('push-dialog').showModal();
+}
+
+async function doGitPush() {
+  const msg = document.getElementById('push-msg').value.trim();
+  if (!msg) return;
+  document.getElementById('push-dialog').close();
+  log('committing + pushing: "' + msg + '"');
+  const r = await api('/api/git/push', { message: msg });
+  log(r.ok ? 'pushed' : (r.error || 'push failed'), r.ok ? 'ok' : 'err');
+  document.getElementById('push-msg').value = '';
+  await refresh();
+}
+
+async function doResetAll() {
+  if (!confirm('Re-link every currently-installed module from the repo?')) return;
+  log('resetting all modules…');
+  const r = await api('/api/reset-all');
+  log('reset-all done', 'ok');
+  await refresh();
+}
+
+refresh();
+setInterval(refresh, 15000);
+</script>
+</body>
+</html>

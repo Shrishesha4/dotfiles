@@ -7,7 +7,7 @@ source "$DOTFILES_DIR/lib/link.sh"
 command -v brew >/dev/null 2>&1 || { echo "Homebrew not found. Run scripts/bootstrap.sh first."; exit 1; }
 command -v gum >/dev/null 2>&1 || brew install gum
 
-MODULES=(zsh git ghostty starship claude-code agents-skills vscode cursor brew npm macos)
+MODULES=(zsh git ghostty starship claude-code agents-skills vscode cursor brew npm macos gui)
 
 SELECTED=$(printf '%s\n' "${MODULES[@]}" | gum choose --no-limit \
   --header "Select modules to install (space=toggle, enter=confirm)")
