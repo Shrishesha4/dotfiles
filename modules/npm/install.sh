@@ -7,7 +7,7 @@ export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
 if [ ! -s "$NVM_DIR/nvm.sh" ]; then
   echo "Installing nvm..."
   mkdir -p "$NVM_DIR"
-  curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+  curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.6/install.sh | bash
 fi
 
 # Load nvm into this shell (it's normally only added to interactive zsh/bash rc)
