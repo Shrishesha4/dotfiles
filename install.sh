@@ -9,8 +9,16 @@ command -v gum >/dev/null 2>&1 || brew install gum
 
 MODULES=(zsh git ghostty starship claude-code agents-skills vscode cursor brew npm macos gui)
 
-SELECTED=$(printf '%s\n' "${MODULES[@]}" | gum choose --no-limit \
-  --header "Select modules to install (space=toggle, enter=confirm)")
+SELECTED_DEFAULT=$(printf '%s,' "${MODULES[@]}")
+
+if [ "${DOTFILES_ALL:-0}" = "1" ]; then
+  SELECTED=$(printf '%s\n' "${MODULES[@]}")
+else
+  # Pre-select all modules so Enter installs everything; uncheck with space.
+  SELECTED=$(printf '%s\n' "${MODULES[@]}" | gum choose --no-limit \
+    --selected "$SELECTED_DEFAULT" \
+    --header "Select modules to install (space=toggle, enter=confirm)")
+fi
 
 if [ -z "$SELECTED" ]; then
   echo "Nothing selected, exiting."
