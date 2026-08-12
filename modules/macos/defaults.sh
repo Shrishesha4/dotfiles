@@ -8,12 +8,16 @@ set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-run_sudo() {
-  if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
-    sudo "$@"
-  else
-    echo "SKIP (no sudo): $*" >&2
+SUDO_ASKED=0
+ask_sudo_once() {
+  if [ "$SUDO_ASKED" -eq 0 ] && command -v sudo >/dev/null 2>&1; then
+    sudo -v
+    SUDO_ASKED=1
   fi
+}
+run_sudo() {
+  ask_sudo_once
+  sudo "$@"
 }
 
 # --- Dock ---------------------------------------------------------------------
@@ -26,10 +30,10 @@ defaults write com.apple.dock autohide-time-modifier -float 0.4
 
 # --- Trackpad -----------------------------------------------------------------
 defaults write com.apple.AppleMultitouchTrackpad Clicking -bool true
-#SKIP: defaults write com.apple.driver.AppleBluetoothMultitouch.trackpad Clicking -bool true
-#SKIP: run_sudo defaults -currentHost write NSGlobalDomain com.apple.mouse.tapBehavior -int 1
-#SKIP: run_sudo defaults write NSGlobalDomain com.apple.mouse.tapBehavior -int 1
-#SKIP: defaults -currentHost write NSGlobalDomain com.apple.trackpad.threeFingerVertSwipeGesture -int 2
+defaults write com.apple.driver.AppleBluetoothMultitouch.trackpad Clicking -bool true
+run_sudo defaults -currentHost write NSGlobalDomain com.apple.mouse.tapBehavior -int 1
+run_sudo defaults write NSGlobalDomain com.apple.mouse.tapBehavior -int 1
+defaults -currentHost write NSGlobalDomain com.apple.trackpad.threeFingerVertSwipeGesture -int 2
 
 # --- Global / keyboard ---------------------------------------------------------
 #SKIP: defaults write NSGlobalDomain KeyRepeat -int 2
@@ -37,6 +41,14 @@ defaults write com.apple.AppleMultitouchTrackpad Clicking -bool true
 # --- Finder -------------------------------------------------------------------
 #SKIP: defaults write com.apple.finder AppleShowAllFiles -bool true
 #SKIP: defaults write com.apple.screencapture location -string "$HOME/Desktop/Screenshots"
+
+# --- Default apps -------------------------------------------------------------
+# Open .command / .sh / unix executables in Ghostty. Using dutti avoids corrupting the launchservices plist.
+if command -v duti >/dev/null 2>&1; then
+  duti -s com.mitchellh.ghostty public.unix-executable all
+elif command -v brew >/dev/null 2>&1; then
+  echo "Install duti to set Ghostty as default terminal: brew install duti"
+fi
 
 # --- Restart affected apps -----------------------------------------------------
 killall Dock 2>/dev/null || true

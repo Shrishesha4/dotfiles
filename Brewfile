@@ -11,6 +11,8 @@ brew "cmatrix"
 brew "cocoapods"
 # Securely send things from one computer to another
 brew "croc"
+# Set default applications for file types and URL schemes
+brew "duti"
 # Get a file from an HTTP, HTTPS or FTP server
 brew "curl"
 # Disk Usage/Free Utility - a better 'df' alternative
