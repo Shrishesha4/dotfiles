@@ -2,9 +2,24 @@
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-if ! command -v npm >/dev/null 2>&1; then
-  echo "npm not found on PATH — skipping global package install."
-  exit 0
+# Install nvm if missing
+export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+if [ ! -s "$NVM_DIR/nvm.sh" ]; then
+  echo "Installing nvm..."
+  mkdir -p "$NVM_DIR"
+  curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+fi
+
+# Load nvm into this shell (it's normally only added to interactive zsh/bash rc)
+# shellcheck disable=SC1091
+. "$NVM_DIR/nvm.sh"
+
+# Install node LTS if not present
+if ! command -v node >/dev/null 2>&1; then
+  echo "Installing Node.js LTS via nvm..."
+  nvm install --lts
+  nvm use --lts
+  nvm alias default 'lts/*'
 fi
 
 echo "Installing global npm packages from $DIR/global-packages.json..."

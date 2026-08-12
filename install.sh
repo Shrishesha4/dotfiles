@@ -4,7 +4,18 @@ DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export DOTFILES_DIR
 source "$DOTFILES_DIR/lib/link.sh"
 
-command -v brew >/dev/null 2>&1 || { echo "Homebrew not found. Run scripts/bootstrap.sh first."; exit 1; }
+# Ensure Homebrew on PATH for child module scripts. install.sh may run in a
+# non-interactive shell that skips zprofile, so brew/npm/node may be missing
+# even when the user's interactive shell has them.
+if ! command -v brew >/dev/null 2>&1; then
+  if [ -x /opt/homebrew/bin/brew ]; then
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+  elif [ -x /usr/local/bin/brew ]; then
+    eval "$(/usr/local/bin/brew shellenv)"
+  else
+    echo "Homebrew not found. Run scripts/bootstrap.sh first."; exit 1
+  fi
+fi
 command -v gum >/dev/null 2>&1 || brew install gum
 
 MODULES=(zsh git ghostty starship claude-code agents-skills vscode cursor brew npm macos gui)
