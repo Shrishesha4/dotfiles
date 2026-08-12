@@ -93,6 +93,8 @@ cask "android-platform-tools"
 cask "appcleaner"
 # Screen capturing and editing tool
 cask "bettershot"
+# Web browser focusing on privacy
+cask "brave-browser"
 # OpenAI's coding agent that runs in your terminal
 cask "codex"
 # App to build and share containerised applications and microservices
@@ -102,10 +104,14 @@ cask "flutter"
 cask "font-jetbrains-mono-nerd-font"
 # Terminal emulator that uses platform-native UI and GPU acceleration
 cask "ghostty"
+# Google's web browser
+cask "google-chrome"
 # Collaboration platform for API development
 cask "postman"
 # Open-source application manager and system cleaner
 cask "puremac"
+# Spotlight replacement / launcher / productivity tool
+cask "raycast"
 # Move and resize windows using keyboard shortcuts or snap areas
 cask "rectangle"
 # Team communication and collaboration software
