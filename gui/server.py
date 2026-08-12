@@ -26,12 +26,45 @@ _EXTRA_PATHS = [
     "/usr/bin", "/bin", "/usr/sbin", "/sbin",
 ]
 _BASE_PATH = os.environ.get("PATH", "")
-_ENV_PATH = ":".join([p for p in _EXTRA_PATHS if os.path.isdir(p)] + [_BASE_PATH])
+
+
+def _discover_nvm_bin():
+    """Source nvm.sh in a subshell and return the active node bin dir.
+
+    nvm keeps node/npm at ~/.nvm/versions/node/vX.Y.Z/bin, and only sets PATH
+    for that version after sourcing its init script. launchd-launched processes
+    miss this entirely, so npm install/remove calls fail without it.
+    """
+    nvm_sh = HOME / ".nvm" / "nvm.sh"
+    if not nvm_sh.is_file():
+        return None
+    try:
+        r = subprocess.run(
+            ["bash", "-c", f'source "{nvm_sh}" 2>/dev/null && npm config get prefix 2>/dev/null'],
+            capture_output=True, text=True, timeout=5,
+        )
+        if r.returncode == 0:
+            prefix = r.stdout.strip()
+            if prefix:
+                binp = Path(prefix) / "bin"
+                if binp.is_dir():
+                    return str(binp)
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        pass
+    return None
 
 
 def shell_env():
     """Return env dict with extended PATH for subprocess calls."""
-    return dict(os.environ, PATH=_ENV_PATH)
+    parts = [p for p in _EXTRA_PATHS if os.path.isdir(p)]
+    nvm_bin = _discover_nvm_bin()
+    if nvm_bin and nvm_bin not in parts:
+        parts.append(nvm_bin)
+    nvm_default_bin = HOME / ".nvm" / "bin"
+    if nvm_default_bin.is_dir() and str(nvm_default_bin) not in parts:
+        parts.append(str(nvm_default_bin))
+    parts.append(_BASE_PATH)
+    return dict(os.environ, PATH=":".join(parts))
 
 # name-safe pattern for anything passed to a subprocess as a package/extension name
 SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.@/-]*$")
